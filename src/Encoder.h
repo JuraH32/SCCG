@@ -3,10 +3,8 @@
 
 
 class Encoder {
-private:
-
-public:
-
+   private:
+   public:
 };
 
 #endif

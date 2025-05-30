@@ -1,7 +1,11 @@
 #include <iostream>
 #include <string>
 #include <vector>
-#include <random> // For random nucleotide generation
+#include <random>
+#include "src/FastaParser.h"
+#include "src/MatchFinder.h"
+#include "src/Encoder.h"
+#include "src/Decoder.h"
 
 
 // Function to print usage instructions for the command-line tool.
@@ -28,8 +32,19 @@ std::string createDummyFastaSequence(std::int16_t sequenceLength) {
 }
 
 void encode(const std::string& reference_path, const std::string& target_file, int kmer_size) {
-    //TODO: Implement the encoding logic using the Encoder class.
+    std::string reference = FastaParser::readSequence(reference_path);
+    std::string target = FastaParser::readSequence(target_file);
+
+    KmerIndex ref_kmer_index(kmer_size);
+    ref_kmer_index.buildIndex(reference);
+
+    MatchFinder finder(ref_kmer_index, reference, target, kmer_size);
+    std::vector<Match> matches = finder.findSignificantMatches();
+
+    Encoder encoder;
+    encoder.encode(reference, target, matches, kmer_size);
 }
+
 
 void decode(const std::string& reference_path, const std::string& target_file) {
     //TODO: Implement the decoding logic using the Decoder class.

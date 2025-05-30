@@ -4,10 +4,9 @@
 // Decoder class: Responsible for reconstructing the target sequence
 // from its compressed representation and the reference sequence.
 class Decoder {
-private:
+   private:
 
-public:
-
+   public:
 };
 
 #endif
