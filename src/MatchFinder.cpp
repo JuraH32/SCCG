@@ -2,6 +2,8 @@
 #include <iostream>
 #include <algorithm>
 
+const size_t MatchFinder::DEFAULT_MIN_MATCH_LEN;
+
 MatchFinder::MatchFinder(const KmerIndex& kmer_index_param,
                          const std::string& reference_sequence_param,
                          const std::string& target_sequence_param,
