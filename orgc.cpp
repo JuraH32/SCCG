@@ -13,6 +13,8 @@
 #include <sys/stat.h>
 #include <cstdio>
 #include <cstdlib>
+#include <sys/types.h>
+#include <io.h>
 
 class newkmer {
 private:
@@ -267,12 +269,12 @@ public:
         int Nkey = stringHashCode(Nkmer);
         i = 0;
 
-        std::cout << "buildLhashtable: current_length = " << current_length << ", kmer_length_param = "
-                  << kmer_length_param << std::endl;
+        // std::cout << "buildLhashtable: current_length = " << current_length << ", kmer_length_param = "
+        //           << kmer_length_param << std::endl;
         int count = 0;
 
         while (i < current_length - kmer_length_param + 1) {
-            if (++count % 5000 == 0) std::cout << "Adding kmer #" << count << std::endl;
+            // if (++count % 5000 == 0) std::cout << "Adding kmer #" << count << std::endl;
 
             std::string kmer_str = read.substr(i, kmer_length_param); // Use param, renamed kmer to kmer_str
             newkmer newKMer;
@@ -295,7 +297,7 @@ public:
                 }
             }
         }
-        std::cout << "Exiting buildLhashtable normally" << std::endl;
+        // std::cout << "Exiting buildLhashtable normally" << std::endl;
     }
 
     // build global hash table
@@ -306,9 +308,9 @@ public:
             kmer_location[i] = -1;
         }
         for (int i = 0; i < iteration; i++) {
-            if (i % 1000000 == 0) {
-                std::cout << "buildGhashtable: Processing kmer at index " << i << std::endl;
-            }
+            // if (i % 1000000 == 0) {
+            //     std::cout << "buildGhashtable: Processing kmer at index " << i << std::endl;
+            // }
             std::string kmer_str = read.substr(i, kmer_length_param); // Use param, renamed kmer
             long key = std::abs(static_cast<long>(stringHashCode(kmer_str)));
 
@@ -361,10 +363,10 @@ public:
     }
 
     static int get_incre(int endinRef_param, int endinTar_param, int Refendindex, int Tarendindex) { // Renamed params
-        std::cout << "get_incre called with endinRef_param: " << endinRef_param
-                  << " endinTar_param: " << endinTar_param
-                  << " Refendindex: " << Refendindex
-                  << " Tarendindex: " << Tarendindex << std::endl;
+        // std::cout << "get_incre called with endinRef_param: " << endinRef_param
+        //           << " endinTar_param: " << endinTar_param
+        //           << " Refendindex: " << Refendindex
+        //           << " Tarendindex: " << Tarendindex << std::endl;
 
         int position = 0;
         int endIndex;
@@ -402,10 +404,10 @@ public:
         int kmerstart_val, endinRef_val, endinTar_val, Refendindex, Tarendindex; // Renamed params
         std::string kmer_str; // Renamed kmer
 
-        std::cout << "In Lmatch, ref_seq.size(): " << ref_seq.size() << " tar_seq.size(): " << tar_seq.size()
-                  << " kmer_len: " << kmer_len << std::endl;
+        // std::cout << "In Lmatch, ref_seq.size(): " << ref_seq.size() << " tar_seq.size(): " << tar_seq.size()
+        //           << " kmer_len: " << kmer_len << std::endl;
         buildLhashtable(ref_seq, kmer_len);
-        std::cout << "buildLhashtable OK" << std::endl;
+        // std::cout << "buildLhashtable OK" << std::endl;
 
         while (true) {
             increment = 0;
@@ -981,7 +983,21 @@ int main(int argc, char *argv[]) {
 
     std::string reference_genome_path; // Renamed to avoid conflict with ORGC::reference
     std::string target_genome_path;    // Renamed to avoid conflict with ORGC::target
-    std::string final_folder = std::string(argv[3]) + "/result"; // output file folder
+    std::string output_dir = argv[3];
+    struct stat st = {0};
+    if (stat(output_dir.c_str(), &st) == -1) {
+        if (mkdir(output_dir.c_str(), 0777) != 0) {
+            std::cerr << "Failed to create output directory: " << output_dir << std::endl;
+            return 1;
+        }
+    }
+    std::string final_folder = output_dir + "/result";
+    if (stat(final_folder.c_str(), &st) == -1) {
+        if (mkdir(final_folder.c_str(), 0777) != 0) {
+            std::cerr << "Failed to create result subdirectory: " << final_folder << std::endl;
+            return 1;
+        }
+    }
     std::string mkdir_cmd = "mkdir \"" + final_folder + "\"";  // Enclose path in quotes for spaces
     std::system(mkdir_cmd.c_str()); // Use c_str()
     std::string final_file_path; // Renamed
@@ -994,19 +1010,16 @@ int main(int argc, char *argv[]) {
                              "chr17.fa", "chr18.fa", "chr19.fa", "chr20.fa",
                              "chr21.fa", "chr22.fa", "chrX.fa", "chrY.fa"};
 
-    // Get system memory info (simplified)
-    std::cout << "MAX RAM: Available" << std::endl;
-
     auto startDate = std::chrono::system_clock::now();
     long startCpuTimeNano = ORGC::getCPUTime(); // ORGC scope
     std::time_t start_time = std::chrono::system_clock::to_time_t(startDate);
     std::cout << "Start time: " << std::ctime(&start_time);
 
-    std::cout << "Resizing next_kmer..." << std::endl;
+    // std::cout << "Resizing next_kmer..." << std::endl;
     ORGC::next_kmer.resize(ORGC::maxchar, -1);
-    std::cout << "next_kmer done. Resizing kmer_location..." << std::endl;
+    // std::cout << "next_kmer done. Resizing kmer_location..." << std::endl;
     ORGC::kmer_location.resize(ORGC::maxseq, -1);
-    std::cout << "Both vectors resized." << std::endl;
+    // std::cout << "Both vectors resized." << std::endl;
 
 
     for (int i = 0; i < 24; i++) {
@@ -1045,8 +1058,8 @@ int main(int argc, char *argv[]) {
                 break;
             }
 
-            std::cout << "Reference: " << greference_path << " length: " << reference_seq_content.size() << std::endl;
-            std::cout << "Target: " << gtarget_path << " length: " << target_seq_content.size() << std::endl;
+            // std::cout << "Reference: " << greference_path << " length: " << reference_seq_content.size() << std::endl;
+            // std::cout << "Target: " << gtarget_path << " length: " << target_seq_content.size() << std::endl;
 
             int target_length_val = target_seq_content.length(); // Renamed var
 
@@ -1060,20 +1073,20 @@ int main(int argc, char *argv[]) {
 
             std::string auxiliary = ORGC::meta_data + "\n" + std::to_string(ORGC::length) + "\n"; // ORGC scope
 
-            std::cout << "Read sequences OK" << std::endl;
+            // std::cout << "Read sequences OK" << std::endl;
             std::vector<Position> L_list = ORGC::lowercase_position(target_seq_content); // ORGC scope
-            std::cout << "lowercase_position OK" << std::endl;
+            // std::cout << "lowercase_position OK" << std::endl;
             ORGC::write(final_file_path, L_list, false, auxiliary); // ORGC scope
-            std::cout << "write 1 OK" << std::endl;
+            // std::cout << "write 1 OK" << std::endl;
             ORGC::write(final_file_path, "\n", true);               // ORGC scope
-            std::cout << "write 2 OK" << std::endl;
+            // std::cout << "write 2 OK" << std::endl;
 
-            std::cout << "Before std::transform upper" << std::endl;
+            // std::cout << "Before std::transform upper" << std::endl;
             std::transform(reference_seq_content.begin(), reference_seq_content.end(), reference_seq_content.begin(),
                            ::toupper);
-            std::cout << "After upper ref" << std::endl;
+            // std::cout << "After upper ref" << std::endl;
             std::transform(target_seq_content.begin(), target_seq_content.end(), target_seq_content.begin(), ::toupper);
-            std::cout << "After upper target" << std::endl;
+            // std::cout << "After upper target" << std::endl;
 
             if (stat(tempfile.c_str(), &buffer) == 0) {
                 std::remove(tempfile.c_str());
@@ -1089,8 +1102,8 @@ int main(int argc, char *argv[]) {
             // The ORGC utilities object below will reset it.
 
             while (true) {
-                std::cout << "New segment: sot=" << ORGC::sot << " eot=" << ORGC::eot << " sor=" << ORGC::sor << " eor="
-                          << ORGC::eor << std::endl;
+                // std::cout << "New segment: sot=" << ORGC::sot << " eot=" << ORGC::eot << " sor=" << ORGC::sor << " eor="
+                //           << ORGC::eor << std::endl;
                 ORGC utilities; // Calls constructor, resets ORGC::text and ORGC::hashmap
                 int kmerlength_val = ORGC::kmer_length; // ORGC scope, Renamed var
 
@@ -1124,11 +1137,11 @@ int main(int argc, char *argv[]) {
                 }
                 // Assign to static members ORGC::reference and ORGC::target for Lmatch/Gmatch if they use these static members
                 // The Lmatch/Gmatch functions were changed to take string& parameters, so this is better:
-                std::cout << "Before substrings" << std::endl;
+                // std::cout << "Before substrings" << std::endl;
                 std::string current_ref_segment = reference_seq_content.substr(ORGC::sor, ORGC::eor - ORGC::sor);
                 std::string current_tar_segment = target_seq_content.substr(ORGC::sot, ORGC::eot - ORGC::sot);
-                std::cout << "Created substrings, ref_segment.size(): " << current_ref_segment.size()
-                          << " tar_segment.size(): " << current_tar_segment.size() << std::endl;
+                // std::cout << "Created substrings, ref_segment.size(): " << current_ref_segment.size()
+                //           << " tar_segment.size(): " << current_tar_segment.size() << std::endl;
 
                 ORGC::reference = current_ref_segment;
                 ORGC::target = current_tar_segment;
@@ -1136,7 +1149,7 @@ int main(int argc, char *argv[]) {
 
                 std::vector<Position> list_matches = ORGC::Lmatch(current_ref_segment, current_tar_segment,
                                                                   kmerlength_val); // ORGC scope
-                std::cout << "Lmatch OK, list_matches.size(): " << list_matches.size() << std::endl;
+                // std::cout << "Lmatch OK, list_matches.size(): " << list_matches.size() << std::endl;
 
                 if (list_matches.empty()) { // Check .empty() instead of size() <=0
                     kmerlength_val = 11;
