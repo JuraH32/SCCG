@@ -1,5 +1,4 @@
 #include "Compressor.h"
-#include "FastaParser.h" // For FastaParser::readSequence
 #include "MatchFinder.h" // For MatchFinder and Match struct
 #include "Position.h"
 #include "Utils.h"
@@ -16,7 +15,7 @@ Compressor::Compressor() {
 }
 
 bool Compressor::saveToFile(const std::string &filename, const std::string &content) {
-    std::ofstream outFile(filename);
+    std::ofstream outFile(filename, std::ios::app);
     if (!outFile.is_open()) {
         std::cerr << "Error: Could not open file for writing: " << filename << std::endl;
         return false;
@@ -28,6 +27,10 @@ bool Compressor::saveToFile(const std::string &filename, const std::string &cont
 
 std::string Compressor::readSequenceFromFile(const std::string &filename) {
     std::ifstream file(filename);
+
+    //Print the absolute path of the file being read
+    std::cout << "Reading sequence from file: " << std::filesystem::absolute(filename) << std::endl;
+
     if (!file.is_open()) {
         std::cerr << "Error: Could not open file: " << filename << std::endl;
         return "";
@@ -153,11 +156,6 @@ void Compressor::postprocess(std::string& temp_input_filepath, const std::string
             last_absolute_ref_end = static_cast<long long>(parsed_delta_info.ref_pos) + parsed_delta_info.length -1; // Update inclusive end
         } else { // Not a pure match line, pass through
             final_output_stream << merged_line << "\n";
-            // If this line breaks the sequence of pure matches, delta should restart for next pure match.
-            // However, Java's `prev_end_coord` persists across unaligned text.
-            // For simplicity here, if a non-pure-match line appears, it doesn't reset last_absolute_ref_end.
-            // The delta is always from the *last pure match's end*.
-            // If a different behavior is needed (e.g., reset delta on non-match), `last_absolute_ref_end` could be reset to -1.
         }
     }
     final_output_stream.close();
@@ -191,15 +189,31 @@ std::vector<Position> Compressor::getPositions(const std::string &sequence,
     return positions;
 }
 
-void Compressor::savePositionsToFile(const std::string &filename, const std::vector<Position> &positions) {
+void Compressor::savePositionsToFile(const std::string &filename, const std::vector<Position> &positions, const std::string& label_prefix) {
     std::ostringstream buffer;
-    buffer << "LOWERCASE_POSITIONS: ";
-    int last_end = 0;
+    buffer << label_prefix;
+    int previous_inclusive_end = -1;
+
     for (const auto &pos: positions) {
-        int start = pos.startInTarget;
-        int end = pos.endInTarget;
-        buffer << start - last_end << " " << end - start + 1 << " ";
+        int current_start = pos.startInTarget;
+        int current_end = pos.endInTarget;
+        int length = current_end - current_start + 1;
+
+        if (length <= 0) continue; // Should not happen if getPositions is correct
+
+        int delta_start_val;
+        if (previous_inclusive_end == -1) { // First position
+            delta_start_val = current_start; // Absolute start for the first one
+        } else {
+            delta_start_val = current_start - (previous_inclusive_end + 1); // Gap from end of previous
+        }
+        buffer << delta_start_val << " " << length << " ";
+        previous_inclusive_end = current_end;
     }
+
+    // Add newline if the label was written, even if no positions.
+    // This matches Java's behavior of writing a newline after L_list/N_list content.
+    buffer << "\n";
 
     if (!saveToFile(filename, buffer.str())) {
         std::cerr << "Error: Could not save positions to file: " << filename << std::endl;
@@ -208,290 +222,37 @@ void Compressor::savePositionsToFile(const std::string &filename, const std::vec
 
 void Compressor::saveAlignmentSegmentsToFile(
         const std::string &filename,
-        const std::vector<AlignmentSegment> &segments
+        const std::vector<AlignmentSegment> &segments,
+        int ref_segment_offset,
+        int target_segment_offset
 ) {
-    std::ofstream outFile(filename);
-    if (!outFile.is_open()) {
-        std::cerr << "Error: Could not open file for writing: " << filename << std::endl;
-        return;
-    }
+    std::ostringstream oss;
 
     for (const auto &segment: segments) {
         if (segment.is_match) {
-            outFile << "MATCH "
-                    << segment.region.startInReference << " "
-                    << segment.region.startInTarget << " "
-                    << segment.region.length() << " NOMISMATCH\n";
+            int absolute_ref_start = ref_segment_offset + segment.region.startInReference;
+            int length = segment.region.length();
+            if (length <= 0) continue;
+
+            oss << "MATCH "
+                << absolute_ref_start << " "
+                << length << " NOMISMATCH\n";
         } else {
-            outFile << "MISMATCH "
-                    << segment.region.startInTarget << " "
-                    << segment.mismatched_sequence << "\n";
+            int absolute_target_start = target_segment_offset + segment.region.startInTarget;
+            if (segment.mismatched_sequence.empty()) continue;
+
+            oss << "MISMATCH "
+                << absolute_target_start << " "
+                << segment.mismatched_sequence << "\n";
         }
     }
 
-    outFile.close();
+    if (!oss.str().empty()) { // Only save if there's content
+        if (!saveToFile(filename, oss.str())) {
+            std::cerr << "Error: Could not save alignment segments to file: " << filename << std::endl;
+        }
+    }
 }
-
-//void Compressor::compress(const std::string& ref_fasta_path,
-//                          const std::string& target_fasta_path,
-//                          const std::string& output_path,
-//                          int kmer_size,
-//                          int k0,
-//                          size_t segment_length,
-//                          int search_range_limit,
-//                          int mismatch_threshold_T1,
-//                          int mismatch_threshold_T2) {
-//    int controuble = 0;
-//    bool is_con = false;
-//    bool local = true;
-//    int mismatch = 0;
-//
-//    std::cout << "Loading reference sequence from: " << ref_fasta_path << std::endl;
-//    std::string reference_sequence_orig = FastaParser::readSequence(ref_fasta_path);
-//    if (reference_sequence_orig.empty()) {
-//        throw std::runtime_error("Failed to read reference sequence or file is empty: " + ref_fasta_path);
-//    }
-//
-//    std::cout << "Loading target sequence from: " << target_fasta_path << std::endl;
-//    std::string target_sequence_orig = FastaParser::readSequence(target_fasta_path);
-//    if (target_sequence_orig.empty()) {
-//        throw std::runtime_error("Failed to read target sequence or file is empty: " + target_fasta_path);
-//    }
-//
-//    // Split the target path to get the filename
-//    std::vector<std::string> target_path_parts = Utils::splitPath(target_fasta_path);
-//    std::string target_filename = target_path_parts.empty() ? "target" : target_path_parts.back();
-//    std::string final_filename = output_path + "/" + target_filename;
-//
-//    while(local) {
-//        mismatch = 0;
-//
-//        Utils::removeFileIfExists(final_filename);
-//        std::string reference_sequence = reference_sequence_orig;
-//        std::string target_sequence = target_sequence_orig;
-//        std::string temp_path = output_path + "/interim.txt";
-//
-//
-//    }
-//
-//    // Line 1 (part 1): Store lowercase positions from target sequence and convert to uppercase
-//    std::vector<size_t> lowercase_positions_T;
-//    for (size_t i = 0; i < target_sequence.length(); ++i) {
-//        if (std::islower(target_sequence[i])) {
-//            lowercase_positions_T.push_back(i);
-//            target_sequence[i] = std::toupper(target_sequence[i]);
-//        }
-//    }
-//    for (char& c : reference_sequence) {
-//        c = std::toupper(c);
-//    }
-//
-//    std::string intermediate_data_stream;
-//    intermediate_data_stream += "LOWERCASE_POSITIONS_T_COUNT " + std::to_string(lowercase_positions_T.size()) + "\n";
-//    for (size_t pos : lowercase_positions_T) {
-//        intermediate_data_stream += std::to_string(pos) + "\n";
-//    }
-//
-//    // save the intermediate data stream to a file
-//    if (!saveToFile(output_intermediate_path, intermediate_data_stream)) {
-//        throw std::runtime_error("Failed to save intermediate data stream to file: " + output_intermediate_path);
-//    }
-//
-//    // Line 1 (part 2): Divide R and T into segments
-//    size_t m_ref_segments = (reference_sequence.length() + segment_length - 1) / segment_length;
-//    size_t n_target_segments = (target_sequence.length() + segment_length - 1) / segment_length;
-//
-//    std::vector<std::string> ref_segments;
-//    for (size_t i = 0; i < m_ref_segments; ++i) {
-//        size_t start = i * segment_length;
-//        size_t length = std::min(static_cast<size_t>(segment_length), reference_sequence.length() - start);
-//        if (length > 0) ref_segments.push_back(reference_sequence.substr(start, length));
-//    }
-//    if (ref_segments.empty() && !reference_sequence.empty()) ref_segments.push_back(reference_sequence);
-//
-//
-//    std::vector<std::string> target_segments;
-//    for (size_t i = 0; i < n_target_segments; ++i) {
-//        size_t start = i * segment_length;
-//        size_t length = std::min(static_cast<size_t>(segment_length), target_sequence.length() - start);
-//        if (length > 0) target_segments.push_back(target_sequence.substr(start, length));
-//    }
-//    if (target_segments.empty() && !target_sequence.empty()) target_segments.push_back(target_sequence);
-//
-//    int mismatch_t_ime = 0;
-//    bool perform_global_fallback = false;
-//
-//    // Line 2: for i = 1 to n (loop over target_segments)
-//    for (size_t i = 0; i < target_segments.size(); ++i) {
-//        std::cout << "Processing target segment " << i + 1 << "/" << target_segments.size() << std::endl;
-//        bool current_ti_has_match = false;
-//        std::vector<Match> matches_for_ti;
-//
-//        // Attempt to find a match for target_segments[i] (ti) with any ref_segments[j] (rj)
-//        // Line 3: Invoke Algorithm 1 with parameters (rj, ti, k, 0, false)
-//        for (size_t j = 0; j < ref_segments.size(); ++j) {
-//            if (ref_segments[j].length() >= static_cast<size_t>(kmer_size) && target_segments[i].length() >= static_cast<size_t>(kmer_size)) {
-//                MatchFinder finder(ref_segments[j], target_segments[i], kmer_size, 0 /*search_range*/);
-//                std::vector<Match> found_matches = finder.findMatches(false /*global*/);
-//                for (const auto& match : found_matches) {
-//                    if (match.length > 0) {
-//                        current_ti_has_match = true;
-//                        matches_for_ti = found_matches;
-//                        goto found_match_for_ti_k; // Break from both loops for rj and go to process this match
-//                    }
-//                }
-//            }
-//        }
-//        found_match_for_ti_k:;
-//
-//        // Line 4: if (no matched string found for (ri, ti))
-//        if (!current_ti_has_match) {
-//            // Line 5: Invoke Algorithm 1 with parameters (rj, ti, k0, 0, false)
-//            for (size_t j = 0; j < ref_segments.size(); ++j) {
-//                if (ref_segments[j].length() >= static_cast<size_t>(k0) && target_segments[i].length() >= static_cast<size_t>(k0)) {
-//                    MatchFinder finder(ref_segments[j], target_segments[i], k0, 0 /*search_range*/);
-//                    std::vector<Match> found_matches = finder.findMatches(false /*global*/);
-//                    for (const auto& match : found_matches) {
-//                        if (match.length > 0) {
-//                            current_ti_has_match = true;
-//                            matches_for_ti = found_matches;
-//                            goto found_match_for_ti_k0; // Break from both loops for rj
-//                        }
-//                    }
-//                }
-//            }
-//            found_match_for_ti_k0:;
-//        }
-//
-//        // Line 7: if (still no matched string found for (ri, ti))
-//        if (!current_ti_has_match) {
-//            // Line 8: if (neither ri nor ti consists of only ‘N’ characters) - Simplified to check ti
-//            bool ti_is_all_N = std::all_of(target_segments[i].begin(), target_segments[i].end(), [](char c){ return c == 'N'; });
-//            if (!ti_is_all_N) {
-//                // Line 9: mismatchtime ++
-//                mismatch_t_ime++;
-//            }
-//            // Line 11: Store ti in the intermediate file
-//            intermediate_data_stream += "RAW_TARGET_SEGMENT " + std::to_string(i) + " " + target_segments[i] + "\n";
-//        } else { // Matched (current_ti_has_match is true)
-//            // Line 13: Store (pn; ln)pairs and unmatched strings in ti
-//            intermediate_data_stream += "MATCHED_TARGET_SEGMENT " + std::to_string(i) + "\n";
-//            size_t total_mismatched_chars_in_ti = 0; // Will be calculated based on match coverage
-//
-//            size_t covered_by_matches = 0;
-//            for (const auto& match : matches_for_ti) {
-//                intermediate_data_stream += "MATCH " + std::to_string(match.reference_pos) + " " +
-//                                            std::to_string(match.length) + " " +
-//                                            (match.mismatch.empty() ? "NOMISMATCH" : match.mismatch) + "\n";
-//                covered_by_matches += match.length;
-//            }
-//
-//            // Line 14: if (the percentage of mismatching characters in ti > T1)
-//            size_t total_len_ti = target_segments[i].length();
-//            if (total_len_ti > 0) {
-//                total_mismatched_chars_in_ti = total_len_ti - covered_by_matches;
-//                double mismatch_percentage = static_cast<double>(total_mismatched_chars_in_ti) * 100.0 / total_len_ti;
-//                if (mismatch_percentage > static_cast<double>(mismatch_threshold_T1)) {
-//                    // Line 15: mismatchtime ++
-//                    mismatch_t_ime++;
-//                }
-//            }
-//        }
-//
-//        // Line 16 (second part in pseudocode, check after processing ti): if (mismatchtime > T2)
-//        if (mismatch_t_ime > mismatch_threshold_T2) {
-//            // Line 17: Go to line 21
-//            perform_global_fallback = true;
-//            break; // Break from the loop over i (target_segments)
-//        }
-//    } // Line 19: end for (loop over target_segments)
-//
-//    // After the loop (either completed or broken by T2 threshold)
-//    if (perform_global_fallback) { // Came from line 17
-//        std::cout << "Global fallback triggered (mismatch_t_ime=" << mismatch_t_ime << " > T2=" << mismatch_threshold_T2 << ")" << std::endl;
-//        // Line 21: Clear the intermediate file (stream)
-//        intermediate_data_stream.clear();
-//
-//        // Line 22: Convert all lowercase characters into uppercase, delete ‘N’ characters.
-//        // Store info about ‘N’ fragments and lowercase characters in T into the intermediate file.
-//
-//        // Re-add original lowercase positions for T
-//        intermediate_data_stream += "LOWERCASE_POSITIONS_T_COUNT " + std::to_string(lowercase_positions_T.size()) + "\n";
-//        for (size_t pos : lowercase_positions_T) {
-//            intermediate_data_stream += std::to_string(pos) + "\n";
-//        }
-//
-//        // Use the already uppercased full sequences (reference_sequence, target_sequence)
-//        std::string processed_R = reference_sequence;
-//        std::string processed_T = target_sequence;
-//
-//        // Delete 'N' characters from T and store 'N' fragment info
-//        std::string n_free_T;
-//        n_free_T.reserve(processed_T.length());
-//        std::vector<std::pair<size_t, size_t>> n_fragments_T; // pos, len
-//        size_t current_n_start_T = std::string::npos;
-//        for (size_t char_idx = 0; char_idx < processed_T.length(); ++char_idx) {
-//            if (processed_T[char_idx] == 'N') {
-//                if (current_n_start_T == std::string::npos) current_n_start_T = char_idx;
-//            } else {
-//                if (current_n_start_T != std::string::npos) {
-//                    n_fragments_T.push_back({current_n_start_T, char_idx - current_n_start_T});
-//                    current_n_start_T = std::string::npos;
-//                }
-//                n_free_T += processed_T[char_idx];
-//            }
-//        }
-//        if (current_n_start_T != std::string::npos) {
-//            n_fragments_T.push_back({current_n_start_T, processed_T.length() - current_n_start_T});
-//        }
-//        intermediate_data_stream += "N_FRAGMENTS_T_COUNT " + std::to_string(n_fragments_T.size()) + "\n";
-//        for (const auto& frag : n_fragments_T) {
-//            intermediate_data_stream += std::to_string(frag.first) + " " + std::to_string(frag.second) + "\n";
-//        }
-//        processed_T = n_free_T;
-//
-//        // Delete 'N' characters from R (no need to store N fragment info for R per pseudocode)
-//        std::string n_free_R;
-//        n_free_R.reserve(processed_R.length());
-//        for(char c : processed_R) if(c != 'N') n_free_R += c;
-//        processed_R = n_free_R;
-//
-//        if (processed_R.empty() || processed_T.empty() ||
-//            processed_R.length() < static_cast<size_t>(kmer_size) || processed_T.length() < static_cast<size_t>(kmer_size)) {
-//            std::cout << "Warning: Processed R or T is empty or too short for global matching after N removal. Storing T raw." << std::endl;
-//            intermediate_data_stream += "RAW_GLOBAL_TARGET " + processed_T + "\n";
-//        } else {
-//            // Line 23: Invoke algorithm 1 with (processed R, processed T, k, m, true)
-//            // k is kmer_size, m is search_range_limit from function args
-//            std::cout << "Invoking global MatchFinder on N-free sequences (R_len=" << processed_R.length() << ", T_len=" << processed_T.length() << ")" << std::endl;
-//            MatchFinder global_finder(processed_R, processed_T, kmer_size, search_range_limit);
-//            std::vector<Match> global_matches = global_finder.findMatches(true /*global=true*/);
-//
-//            // Line 24: Store (pn; ln) pairs and unmatched sub-strings in processed T
-//            intermediate_data_stream += "GLOBAL_MATCHES\n";
-//            for (const auto& match : global_matches) {
-//                 intermediate_data_stream += "MATCH " + std::to_string(match.reference_pos) + " " +
-//                                            std::to_string(match.length) + " " +
-//                                            (match.mismatch.empty() ? "NOMISMATCH" : match.mismatch) + "\n";
-//            }
-//        }
-//    } else { // Line 20: Go to line 25 (segment-wise processing completed without fallback)
-//        std::cout << "Segment-wise processing complete. No global fallback (mismatch_t_ime=" << mismatch_t_ime << ")" << std::endl;
-//    }
-//
-//    // Line 25: Modify pn in (pn; ln) pairs in the intermediate file with delta coding;
-//    // TODO: Implement merging of continuous matches before delta coding, similar to Java's postprocess().
-//    std::cout << "Placeholder: Apply delta coding to pn in intermediate data." << std::endl;
-//    intermediate_data_stream += "DELTA_CODING_TO_BE_APPLIED\n";
-//
-//    // Line 26: Compress the intermediate file using PPMd algorithm;
-//    // Here we just save the intermediate data. PPMd compression is a separate step.
-//    std::cout << "Saving intermediate data (intended for PPMd compression) to: " << output_intermediate_path << std::endl;
-//    if (!saveToFile(output_intermediate_path, intermediate_data_stream)) { // Use non-static method
-//        throw std::runtime_error("Failed to save intermediate data to " + output_intermediate_path);
-//    }
-//    std::cout << "SCCG algorithm processing part complete. Output: " << output_intermediate_path << std::endl;
-//}
 
 void Compressor::compress(const std::string &ref_fasta_path,
                           const std::string &target_fasta_path,
@@ -500,7 +261,7 @@ void Compressor::compress(const std::string &ref_fasta_path,
                           int k0,
                           size_t segment_length,
                           int search_range_limit,
-                          int mismatch_threshold_T1,
+                          double mismatch_threshold_T1, // Changed from int to double
                           int mismatch_threshold_T2) {
 
     // Load the reference sequence
@@ -521,17 +282,25 @@ void Compressor::compress(const std::string &ref_fasta_path,
 
     std::string final_filename = output_path + "/" + target_filename;
     std::string intermediate_file = output_path + "/intermediate.txt";
-    Utils::removeFileIfExists(final_filename);
-    Utils::removeFileIfExists(intermediate_file);
+    Utils::removeFileIfExists(final_filename, true); // Remove final file if it exists
+    Utils::removeFileIfExists(intermediate_file, true); // Remove intermediate file if it exists
 
     if (target_sequence.empty()) {
         throw std::runtime_error("Failed to read target sequence or file is empty: " + target_fasta_path);
     }
 
+    // Write the metadata and lengths to the intermediate file first
+    std::ostringstream metadata_stream;
+    metadata_stream << meta_data << "\n" << target_sequence.length() << "\n";
+
+    if (!saveToFile(intermediate_file, metadata_stream.str())) {
+        throw std::runtime_error("Failed to save metadata to file: " + intermediate_file);
+    }
+
     // Line 1 (part 1): Store lowercase positions from target sequence and convert to uppercase
     std::vector<Position> lowercase_positions_T;
     lowercase_positions_T = getPositions(target_sequence, [](char c) { return std::islower(c); });
-    savePositionsToFile(intermediate_file, lowercase_positions_T);
+    savePositionsToFile(intermediate_file, lowercase_positions_T, "LOWERCASE_POSITIONS: ");
 
     std::cout << "Lowercase positions in target sequence saved to file" << std::endl;
 
@@ -568,7 +337,12 @@ void Compressor::compress(const std::string &ref_fasta_path,
 
     // For i to n
     for (size_t i = 0; i < n; ++i) {
-        std::cout << "Processing segment " << i + 1 << " of " << n << std::endl;
+//        std::cout << "Processing segment " << i + 1 << " of " << n << std::endl;
+        // Print every 100th segment
+        if (i % 100 == 0) {
+            std::cout << "Processing segment " << i + 1 << " of " << n << std::endl;
+        }
+
         MatchFinder match_finder(ref_segments[i], target_segments[i], kmer_size, search_range_limit);
         std::vector<AlignmentSegment> matches = match_finder.findMatches(false);
 
@@ -598,9 +372,11 @@ void Compressor::compress(const std::string &ref_fasta_path,
         }
 
         // If matches found, process them
-        std::cout << "Matches found for segment " << i + 1 << ". Processing matches." << std::endl;
+//        std::cout << "Matches found for segment " << i + 1 << ". Processing matches." << std::endl;
 
-        saveAlignmentSegmentsToFile(intermediate_file, matches);
+        int current_ref_segment_offset = i * segment_length;
+        int current_target_segment_offset = i * segment_length;
+        saveAlignmentSegmentsToFile(intermediate_file, matches, current_ref_segment_offset, current_target_segment_offset);
 
         int unmatched_chars = 0;
         for (const auto &segment: matches) {
@@ -624,13 +400,24 @@ void Compressor::compress(const std::string &ref_fasta_path,
     if (global_fallback) {
         std::cout << "Performing global fallback due to mismatch threshold." << std::endl;
 
-        Utils::removeFileIfExists(intermediate_file);
+        Utils::removeFileIfExists(intermediate_file, true); // Remove intermediate file if it exists
 
-        // Convert all lowercase characters into uppercase, delete 'N' characters
+        // Write the metadata and ORIGINAL target length to the intermediate file first
+        // meta_data is from the original target_fasta_path. target_sequence.length() is before N-removal.
+        std::ostringstream global_metadata_stream;
+        global_metadata_stream << meta_data << "\n" << target_sequence.length() << "\n";
+
+        if (!saveToFile(intermediate_file, global_metadata_stream.str())) {
+            throw std::runtime_error("Failed to save metadata to file in global fallback: " + intermediate_file);
+        }
+
+        // lowercase_positions_T was already computed from the original target_sequence.
         std::vector<Position> n_fragments_T;
         n_fragments_T = getPositions(target_sequence, [](char c) { return c == 'N'; });
-        savePositionsToFile(intermediate_file, n_fragments_T);
-        savePositionsToFile(intermediate_file, lowercase_positions_T);
+
+        // Java order: L_list then N_list.
+        savePositionsToFile(intermediate_file, lowercase_positions_T, "LOWERCASE_POSITIONS: ");
+        savePositionsToFile(intermediate_file, n_fragments_T, "N_POSITIONS: ");
 
         // Remove 'N' characters from target sequence
         std::string n_free_target;
@@ -652,6 +439,8 @@ void Compressor::compress(const std::string &ref_fasta_path,
         }
         reference_sequence = n_free_reference;
 
+        std::cout << "Performing global matching." << std::endl;
+
         MatchFinder global_match_finder(n_free_reference, n_free_target, kmer_size, search_range_limit);
         std::vector<AlignmentSegment> global_matches = global_match_finder.findMatches(true);
 
@@ -662,7 +451,7 @@ void Compressor::compress(const std::string &ref_fasta_path,
                 throw std::runtime_error("Failed to save raw target sequence to file: " + intermediate_file);
             }
         } else {
-            saveAlignmentSegmentsToFile(intermediate_file, global_matches);
+            saveAlignmentSegmentsToFile(intermediate_file, global_matches, 0, 0); // Offsets are 0 for global
         }
     }
 
@@ -676,5 +465,5 @@ void Compressor::compress(const std::string &ref_fasta_path,
     std::cout << "Final output compressed with 7zip." << std::endl;
 
     // Clean up intermediate file
-    Utils::removeFileIfExists(intermediate_file);
+//    Utils::removeFileIfExists(intermediate_file);
 }

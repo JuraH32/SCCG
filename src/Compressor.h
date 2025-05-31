@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <cstddef> // For size_t
+#include <functional>
 #include "Position.h"
 #include "MatchFinder.h"
 
@@ -19,7 +20,7 @@ public:
                   int k0,
                   size_t segment_length,
                   int search_range_limit,
-                  int mismatch_threshold_T1,
+                  double mismatch_threshold_T1, // Changed from int to double
                   int mismatch_threshold_T2);
 
 private:
@@ -30,10 +31,14 @@ private:
         const std::string& sequence,
         std::function<bool(char)> is_of_interest
     ) const;
-    void savePositionsToFile(const std::string& filename, const std::vector<Position>& positions);
-    void saveAlignmentSegmentsToFile(const std::string& filename, const std::vector<AlignmentSegment>& segments);
+    void savePositionsToFile(const std::string& filename, const std::vector<Position>& positions, const std::string& label_prefix); // Added label_prefix
+    void saveAlignmentSegmentsToFile(
+        const std::string& filename, 
+        const std::vector<AlignmentSegment>& segments,
+        int ref_segment_offset, // Added for local segment processing
+        int target_segment_offset // Added for local segment processing
+    );
     void postprocess(std::string& temp_file, const std::string& output_path);
 };
 
 #endif // SCCG_COMPRESSOR_H
-

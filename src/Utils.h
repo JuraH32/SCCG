@@ -6,14 +6,13 @@
 #include <sstream>
 
 namespace Utils {
-    // Basic example - add error checking and proper path handling!
     int compressWith7zip(const std::string& inputFile) {
-        std::string command = "./7za a " + inputFile + ".7z " + inputFile + " m0=PPMD";
+        std::string command = "../7za a " + inputFile + ".7z " + inputFile + " m0=PPMD";
         return system(command.c_str());
     }
 
     int decompressWith7zip(const std::string& inputFile, const std::string& outputDir) {
-        std::string command = "./7za x " + inputFile + " -o" + outputDir + " -aos";
+        std::string command = "../7za x " + inputFile + " -o" + outputDir + " -aos";
         return system(command.c_str());
     }
 
@@ -33,16 +32,29 @@ namespace Utils {
         return parts;
     }
 
-    void removeFileIfExists(const std::string& filename) {
+    void createFileIfNotExists(const std::string& filename) {
+        std::ofstream file(filename, std::ios::app);
+        if (!file) {
+            std::cerr << "Error: Could not create file: " << filename << std::endl;
+        } else {
+            std::cout << "Created file: " << filename << std::endl;
+        }
+        file.close();
+    }
+
+    void removeFileIfExists(const std::string& filename, bool create_if_not_exists = false) {
         if (std::remove(filename.c_str()) != 0) {
             std::cerr << "Warning: Could not remove file: " << filename << std::endl;
         } else {
             std::cout << "Removed file: " << filename << std::endl;
         }
+        if (create_if_not_exists) {
+            createFileIfNotExists(filename);
+        }
     }
 
     void savePositionsToFile(const std::string& filename, const std::vector<size_t>& positions) {
-        std::ofstream outFile(filename);
+        std::ofstream outFile(filename, std::ios::app);
         if (!outFile.is_open()) {
             std::cerr << "Error: Could not open file for writing: " << filename << std::endl;
             return;
