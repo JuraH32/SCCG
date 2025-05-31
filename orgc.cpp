@@ -10,34 +10,44 @@
 #include <limits>
 #include <cctype>
 #include <cmath>
-#include <sys/stat.h> 
-#include <cstdio>     
-#include <cstdlib>    
+#include <sys/stat.h>
+#include <cstdio>
+#include <cstdlib>
 
 class newkmer {
 private:
     int kmerstart;
     std::string kmer;
-    
+
 public:
     void setkmerstart(int start) { kmerstart = start; }
+
     int getkmerstart() const { return kmerstart; }
-    void setkmer(const std::string& k) { kmer = k; }
+
+    void setkmer(const std::string &k) { kmer = k; }
+
     std::string getkmer() const { return kmer; }
 };
 
 class Position {
 private:
     int startinTar, endinTar, startinRef, endinRef;
-    
+
 public:
     void setstartinTar(int start) { startinTar = start; }
+
     int getstartinTar() const { return startinTar; }
+
     void setendinTar(int end) { endinTar = end; }
+
     int getendinTar() const { return endinTar; }
+
     void setstartinRef(int start) { startinRef = start; }
+
     int getstartinRef() const { return startinRef; }
+
     void setendinRef(int end) { endinRef = end; }
+
     int getendinRef() const { return endinRef; }
 };
 
@@ -53,7 +63,7 @@ public:
     static int sot, eot, sor, eor; // start of target,end of target,start of reference,end of reference
     static int length, mismatch, endref;
     static const int maxchar = 268435456; // 2^28
-    static const int maxseq = 268435456*2; // 2^29
+    static const int maxseq = 268435456 * 2; // 2^29
     static bool local;
     static std::unordered_map<int, std::vector<newkmer>> hashmap;
     static std::vector<int> next_kmer;
@@ -66,9 +76,9 @@ public:
     }
 
     // Java String.hashCode() equivalent
-    static int stringHashCode(const std::string& str) {
+    static int stringHashCode(const std::string &str) {
         int hash = 0;
-        for (char c : str) {
+        for (char c: str) {
             hash = 31 * hash + static_cast<int>(c);
         }
         return hash;
@@ -82,16 +92,16 @@ public:
     }
 
     // read sequence for local matching
-    static std::string LreadSeq(const std::string& sequenceFileName) {
+    static std::string LreadSeq(const std::string &sequenceFileName) {
         std::ifstream file(sequenceFileName);
         if (!file.is_open()) {
             throw std::runtime_error("Cannot open file: " + sequenceFileName);
         }
-        
+
         std::stringstream stringbuilder;
         std::string line;
         bool base = false;
-        
+
         std::getline(file, meta_data); // Chromosome label
         while (std::getline(file, line)) {
             stringbuilder << line;
@@ -105,12 +115,12 @@ public:
     }
 
     // read reference sequence for global matching
-    static std::string GreadrefSeq(const std::string& sequenceFileName) {
+    static std::string GreadrefSeq(const std::string &sequenceFileName) {
         std::ifstream file(sequenceFileName);
         if (!file.is_open()) {
             throw std::runtime_error("Cannot open file: " + sequenceFileName);
         }
-        
+
         std::string line;
         int line_length;
         char temp_ch;
@@ -134,7 +144,7 @@ public:
     }
 
     // read target sequence for global matching
-    static std::string GreadtarSeq(const std::string& sequenceFileName, const std::string& fileName) {
+    static std::string GreadtarSeq(const std::string &sequenceFileName, const std::string &fileName) {
         std::ifstream file(sequenceFileName);
         if (!file.is_open()) {
             throw std::runtime_error("Cannot open file: " + sequenceFileName);
@@ -209,7 +219,7 @@ public:
                     }
                     is_N = false;
                     Nlen = 0;
-                    
+
                     stringbuilder << temp_ch;
                 }
             }
@@ -245,7 +255,8 @@ public:
     }
 
     // build local hash table
-    static void buildLhashtable(const std::string& read, int kmer_length_param) { // Renamed kmer_length to avoid shadowing static member
+    static void buildLhashtable(const std::string &read,
+                                int kmer_length_param) { // Renamed kmer_length to avoid shadowing static member
         int current_length = read.length(), i = kmer_length_param; // Use param
         std::string Nkmer = "";
         while (i > 0) {
@@ -256,8 +267,9 @@ public:
         int Nkey = stringHashCode(Nkmer);
         i = 0;
 
-        std::cout << "buildLhashtable: current_length = " << current_length << ", kmer_length_param = " << kmer_length_param << std::endl;
-         int count = 0;
+        std::cout << "buildLhashtable: current_length = " << current_length << ", kmer_length_param = "
+                  << kmer_length_param << std::endl;
+        int count = 0;
 
         while (i < current_length - kmer_length_param + 1) {
             if (++count % 5000 == 0) std::cout << "Adding kmer #" << count << std::endl;
@@ -268,7 +280,7 @@ public:
             newKMer.setkmer(kmer_str);
             int key = stringHashCode(kmer_str);
             if (hashmap.find(key) != hashmap.end()) {
-                std::vector<newkmer>& list = hashmap[key];
+                std::vector<newkmer> &list = hashmap[key];
                 list.push_back(newKMer);
             } else {
                 std::vector<newkmer> list;
@@ -277,7 +289,8 @@ public:
             }
             i++;
             if (key == Nkey) {
-                while (i < current_length - kmer_length_param + 1 && (read.substr(i, 1) == "n" || read.substr(i, 1) == "N")) {
+                while (i < current_length - kmer_length_param + 1 &&
+                       (read.substr(i, 1) == "n" || read.substr(i, 1) == "N")) {
                     i++;
                 }
             }
@@ -286,7 +299,7 @@ public:
     }
 
     // build global hash table
-    static void buildGhashtable(const std::string& read, int kmer_length_param) { // Renamed kmer_length
+    static void buildGhashtable(const std::string &read, int kmer_length_param) { // Renamed kmer_length
         int iteration = read.length() - kmer_length_param + 1; // Use param
 
         for (int i = 0; i < maxseq; i++) {
@@ -294,15 +307,15 @@ public:
         }
         for (int i = 0; i < iteration; i++) {
             if (i % 1000000 == 0) {
-               std::cout << "buildGhashtable: Processing kmer at index " << i << std::endl;
+                std::cout << "buildGhashtable: Processing kmer at index " << i << std::endl;
             }
             std::string kmer_str = read.substr(i, kmer_length_param); // Use param, renamed kmer
             long key = std::abs(static_cast<long>(stringHashCode(kmer_str)));
-            
+
             if (key == -2147483648LL) {
                 key = 0;
             }
-            
+
             while (key > maxseq - 1) {
                 key = key / 2;
             }
@@ -311,7 +324,7 @@ public:
         }
     }
 
-    static std::vector<Position> lowercase_position(const std::string& sequence) {
+    static std::vector<Position> lowercase_position(const std::string &sequence) {
         std::vector<Position> list;
         bool successive = false;
         int start = 0, current_end = 0; // Renamed end to current_end
@@ -348,10 +361,10 @@ public:
     }
 
     static int get_incre(int endinRef_param, int endinTar_param, int Refendindex, int Tarendindex) { // Renamed params
-      std::cout << "get_incre called with endinRef_param: " << endinRef_param
-          << " endinTar_param: " << endinTar_param
-          << " Refendindex: " << Refendindex
-          << " Tarendindex: " << Tarendindex << std::endl;
+        std::cout << "get_incre called with endinRef_param: " << endinRef_param
+                  << " endinTar_param: " << endinTar_param
+                  << " Refendindex: " << Refendindex
+                  << " Tarendindex: " << Tarendindex << std::endl;
 
         int position = 0;
         int endIndex;
@@ -363,37 +376,40 @@ public:
         }
 
         for (int i = 1; i < endIndex; i++) {
-         // BOUNDS CHECK
-         if ((endinTar_param + i) >= target.size() || (endinRef_param + i) >= reference.size())
-            std::cerr << "OUT OF BOUNDS: endinTar_param + i = " << (endinTar_param + i)
-               << " target.size() = " << target.size()
-               << ", endinRef_param + i = " << (endinRef_param + i)
-               << " reference.size() = " << reference.size() << std::endl;
+            // BOUNDS CHECK
+            if ((endinTar_param + i) >= target.size() || (endinRef_param + i) >= reference.size())
+                std::cerr << "OUT OF BOUNDS: endinTar_param + i = " << (endinTar_param + i)
+                          << " target.size() = " << target.size()
+                          << ", endinRef_param + i = " << (endinRef_param + i)
+                          << " reference.size() = " << reference.size() << std::endl;
             break; // Prevent out-of-bounds
-         if (target[endinTar_param + i] == reference[endinRef_param + i]) {
-            position++;
-         } else {
-            break;
-         }
-      }
+            if (target[endinTar_param + i] == reference[endinRef_param + i]) {
+                position++;
+            } else {
+                break;
+            }
+        }
 
         return position;
     }
 
     // local match
-    static std::vector<Position> Lmatch(const std::string& ref_seq, const std::string& tar_seq, int kmer_len) { // Renamed params
+    static std::vector<Position>
+    Lmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) { // Renamed params
         std::vector<Position> list;
         int index = 0, startIndex;
         int increment, most_incre, key_val; // Renamed key to key_val
         int kmerstart_val, endinRef_val, endinTar_val, Refendindex, Tarendindex; // Renamed params
         std::string kmer_str; // Renamed kmer
 
-        std::cout << "In Lmatch, ref_seq.size(): " << ref_seq.size() << " tar_seq.size(): " << tar_seq.size() << " kmer_len: " << kmer_len << std::endl;
+        std::cout << "In Lmatch, ref_seq.size(): " << ref_seq.size() << " tar_seq.size(): " << tar_seq.size()
+                  << " kmer_len: " << kmer_len << std::endl;
         buildLhashtable(ref_seq, kmer_len);
         std::cout << "buildLhashtable OK" << std::endl;
-        
+
         while (true) {
-            increment = 0; most_incre = 0;
+            increment = 0;
+            most_incre = 0;
             if (index + kmer_len > tar_seq.length()) { // Check before substr
                 break;
             }
@@ -407,43 +423,44 @@ public:
                     break;
                 }
                 continue;
-            }                       
-           
-            std::vector<newkmer>& klist = hashmap[key_val];
+            }
+
+            std::vector<newkmer> &klist = hashmap[key_val];
             startIndex = std::numeric_limits<int>::max();
             most_incre = 0;
-            for (const newkmer& newKMer : klist) {
+            for (const newkmer &newKMer: klist) {
                 if (newKMer.getkmer() == kmer_str) {
                     kmerstart_val = newKMer.getkmerstart();
                     endinRef_val = kmerstart_val + kmer_len - 1;
                     endinTar_val = index + kmer_len - 1;
                     Refendindex = ref_seq.length() - 1; // Use ref_seq
                     Tarendindex = tar_seq.length() - 1; // Use tar_seq                   	
-                    increment = get_incre(endinRef_val, endinTar_val, Refendindex, Tarendindex); // Pass local endinRef/Tar
-                    
-                    if (klist.size() > 1) {                  		                   	
+                    increment = get_incre(endinRef_val, endinTar_val, Refendindex,
+                                          Tarendindex); // Pass local endinRef/Tar
+
+                    if (klist.size() > 1) {
                         if (increment == most_incre) {
-                            if (list.size() > 1) { // Should be list.size() > 0 for safety, or check if list is not empty
+                            if (list.size() >
+                                1) { // Should be list.size() > 0 for safety, or check if list is not empty
                                 int lastEIR = list.back().getendinRef(); // Use back() for last element
-                                if (std::abs(kmerstart_val - lastEIR) < std::abs(startIndex - lastEIR)) // Compare absolute differences
+                                if (std::abs(kmerstart_val - lastEIR) <
+                                    std::abs(startIndex - lastEIR)) // Compare absolute differences
                                     startIndex = kmerstart_val;
-                            } else if (list.empty()){ // If list is empty, this is the first potential match
+                            } else if (list.empty()) { // If list is empty, this is the first potential match
                                 startIndex = kmerstart_val;
                             }
-                        }
-                        else if (increment > most_incre) {
+                        } else if (increment > most_incre) {
                             most_incre = increment;
                             startIndex = kmerstart_val;
                         }
-                    }
-                    else { // klist.size() == 1
+                    } else { // klist.size() == 1
                         most_incre = increment;
                         startIndex = kmerstart_val;
-                        break; 
-                    }                   		
-                }  	
+                        break;
+                    }
+                }
             }
-                
+
             if (startIndex == std::numeric_limits<int>::max()) {
                 index = index + 1;
                 if (index + kmer_len > tar_seq.length()) {
@@ -451,22 +468,24 @@ public:
                 }
                 continue;
             }
-            
+
             Position position_obj; // Renamed position
             position_obj.setstartinTar(index);
             position_obj.setendinTar(index + kmer_len + most_incre - 1);
             position_obj.setstartinRef(startIndex);
             position_obj.setendinRef(startIndex + kmer_len + most_incre - 1);
             list.push_back(position_obj);
-            index = index + kmer_len + most_incre + 1; // Should be most_incre, not most_incre + 1, if get_incre returns count of matching chars
+            index = index + kmer_len + most_incre +
+                    1; // Should be most_incre, not most_incre + 1, if get_incre returns count of matching chars
             if (index + kmer_len > tar_seq.length()) {
                 break;
-            }      
+            }
         }
         return list;
     }
 
-    static std::vector<Position> Gmatch(const std::string& ref_seq, const std::string& tar_seq, int kmer_len) { // Renamed params
+    static std::vector<Position>
+    Gmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) { // Renamed params
         std::vector<Position> list;
         int index = 0, startIndex, lastEIR = 0;
         std::string kmer_str; // Renamed kmer
@@ -480,10 +499,10 @@ public:
             }
             kmer_str = tar_seq.substr(index, kmer_len);
             int key_val = std::abs(stringHashCode(kmer_str)); // Renamed key
-            
+
             if (key_val == -2147483648) { // This condition will never be true due to std::abs
                 key_val = 0;
-            } 			
+            }
             while (key_val > maxseq - 1) {
                 key_val = key_val / 2;
             }
@@ -500,7 +519,7 @@ public:
             startIndex = std::numeric_limits<int>::max();
             most_incre = 0;
             bool match_found = false; // Renamed match to match_found
-            
+
             for (int k = kmer_location[key_val]; k != -1; k = next_kmer[k]) {
                 increment = 0;
                 if (k + kmer_len > ref_seq.length()) continue; // Bounds check for Rkmer
@@ -520,22 +539,22 @@ public:
                 if (std::abs(k - lastEIR) > limit) { // Check absolute difference against limit
                     continue;
                 }
-                
+
                 match_found = true;
                 int ref_idx = k + kmer_len;
                 int tar_idx = index + kmer_len;
                 while (ref_idx < ref_seq.length() && tar_idx < tar_seq.length()
-                        && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
+                       && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
                     ref_idx++;
                     tar_idx++;
                     increment++;
                 }
                 if (increment == most_incre) {
-                     if (!list.empty()) { // Check if list is not empty
+                    if (!list.empty()) { // Check if list is not empty
                         if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR)) // Compare absolute differences
                             startIndex = k;
-                    } else if (list.empty() && startIndex == std::numeric_limits<int>::max()){
-                         startIndex = k; // If list is empty, this is the first potential match
+                    } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
+                        startIndex = k; // If list is empty, this is the first potential match
                     }
                 } else if (increment > most_incre) {
                     most_incre = increment;
@@ -555,17 +574,17 @@ public:
                     int tar_idx = index + kmer_len;
 
                     while (ref_idx < ref_seq.length() && tar_idx < tar_seq.length()
-                            && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
+                           && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
                         ref_idx++;
                         tar_idx++;
                         increment++;
                     }
                     if (increment == most_incre) {
                         if (!list.empty()) { // Check if list is not empty
-                             if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR)) // Compare absolute differences
+                            if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR)) // Compare absolute differences
                                 startIndex = k;
-                        } else if (list.empty() && startIndex == std::numeric_limits<int>::max()){
-                             startIndex = k;
+                        } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
+                            startIndex = k;
                         }
                     } else if (increment > most_incre) {
                         most_incre = increment;
@@ -595,17 +614,17 @@ public:
         }
         return list;
     }
-    
-    static Position format_matches(const std::vector<Position>& list_param) { // Renamed list
+
+    static Position format_matches(const std::vector<Position> &list_param) { // Renamed list
         // This function uses static `text`, `target`, `sor`, `sub_length`, `T1`, `mismatch`, `endref`
         int startinTar_val, startinRef_val, endinRef_val; // Renamed
         int trouble = 0;
         if (list_param.empty()) { // Handle empty list
-             // Decide what to return or throw an error. Returning an empty/default Position might be an option.
-             // For now, let's assume it implies no match and doesn't modify static `text`.
-             // However, the original code would crash here: list[list.size() - 1]
-             // Returning a default constructed Position if list is empty.
-             return Position(); 
+            // Decide what to return or throw an error. Returning an empty/default Position might be an option.
+            // For now, let's assume it implies no match and doesn't modify static `text`.
+            // However, the original code would crash here: list[list.size() - 1]
+            // Returning a default constructed Position if list is empty.
+            return Position();
         }
 
         for (int i = 0; i < list_param.size(); i++) {
@@ -617,13 +636,14 @@ public:
                 if (endinRef_val >= endref) { // ORGC::endref
                     endref = endinRef_val;    // ORGC::endref
                 }
-                
+
                 if (startinTar_val > 0) {
                     std::string preamble = target.substr(0, startinTar_val); // ORGC::target
                     text += preamble + "\n"; // ORGC::text
                     trouble += preamble.length();
                 }
-                text += "" + std::to_string(startinRef_val + sor) + "," + std::to_string(endinRef_val + sor) + "\n"; // ORGC::text, ORGC::sor
+                text += "" + std::to_string(startinRef_val + sor) + "," + std::to_string(endinRef_val + sor) +
+                        "\n"; // ORGC::text, ORGC::sor
                 continue;
             }
 
@@ -632,13 +652,14 @@ public:
             endinRef_val = list_param[i].getendinRef();
             if (endinRef_val >= endref) { // ORGC::endref
                 endref = endinRef_val;    // ORGC::endref
-            }                    
+            }
 
             int endinTarPrev = list_param[i - 1].getendinTar();
             // Bounds check for substr
             if (endinTarPrev + 1 < startinTar_val) {
-                 std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev + 1)); // ORGC::target, renamed mismatch
-                 if (mismatch_str.length() > 0) {
+                std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev +
+                                                                                             1)); // ORGC::target, renamed mismatch
+                if (mismatch_str.length() > 0) {
                     text += mismatch_str + "\n"; // ORGC::text
                     trouble += mismatch_str.length();
                 }
@@ -649,17 +670,18 @@ public:
             }
 
 
-            text += std::to_string(startinRef_val + sor) + "," + std::to_string(endinRef_val + sor) + "\n"; // ORGC::text, ORGC::sor
+            text += std::to_string(startinRef_val + sor) + "," + std::to_string(endinRef_val + sor) +
+                    "\n"; // ORGC::text, ORGC::sor
         }
         if (trouble > (sub_length * T1)) // ORGC::sub_length, ORGC::T1
         {
             mismatch++; // ORGC::mismatch
         }
-        
+
         return list_param.back(); // Returns last element
     }
-    
-    static void format_matches(const std::vector<Position>& list_param, const std::string& fileName) { // Renamed list
+
+    static void format_matches(const std::vector<Position> &list_param, const std::string &fileName) { // Renamed list
         // This function uses static `target`
         std::stringstream stringbuilder;
 
@@ -672,7 +694,7 @@ public:
                 endinRef_val = list_param[i].getendinRef();
                 if (startinTar_val > 0) {
                     std::string preamble = target.substr(0, startinTar_val); // ORGC::target
-                    stringbuilder << preamble << "\n";				
+                    stringbuilder << preamble << "\n";
                 }
                 stringbuilder << startinRef_val << "," << endinRef_val << "\n";
                 continue;
@@ -685,7 +707,8 @@ public:
             int endinTarPrev = list_param[i - 1].getendinTar();
             // Bounds check for substr
             if (endinTarPrev + 1 < startinTar_val) {
-                std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev + 1)); // ORGC::target, renamed mismatch
+                std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev +
+                                                                                             1)); // ORGC::target, renamed mismatch
                 if (mismatch_str.length() > 0) {
                     stringbuilder << mismatch_str << "\n";
                 }
@@ -699,13 +722,15 @@ public:
         if (endinTar_val < (target.length() - 1)) { // ORGC::target
             // Bounds check for substr
             if (endinTar_val + 1 < target.length()) {
-                 stringbuilder << target.substr(endinTar_val + 1, (target.length()) - (endinTar_val + 1)); // ORGC::target
+                stringbuilder
+                        << target.substr(endinTar_val + 1, (target.length()) - (endinTar_val + 1)); // ORGC::target
             }
         }
         write(fileName, stringbuilder.str(), true); // ORGC::write
     }
-    
-    static std::vector<Position> format_matches_N(const std::string& sequence) { // Renamed to avoid overload ambiguity if types were closer
+
+    static std::vector<Position>
+    format_matches_N(const std::string &sequence) { // Renamed to avoid overload ambiguity if types were closer
         std::vector<Position> list;
         bool successive = false;
         int start = 0, current_end = 0; // Renamed end
@@ -723,7 +748,8 @@ public:
                 if (successive) {
                     Position position_obj; // Renamed
                     position_obj.setstartinTar(start);
-                    position_obj.setendinTar(current_end -1); // If current_end is next position, then -1 is correct end index
+                    position_obj.setendinTar(
+                            current_end - 1); // If current_end is next position, then -1 is correct end index
                     list.push_back(position_obj);
                 }
                 successive = false;
@@ -735,13 +761,14 @@ public:
         if (successive) {
             Position position_obj; // Renamed
             position_obj.setstartinTar(start);
-            position_obj.setendinTar(current_end -1); // Assuming current_end was length or next pos
+            position_obj.setendinTar(current_end - 1); // Assuming current_end was length or next pos
             list.push_back(position_obj);
         }
         return list;
     }
-    
-    static void write(const std::string& filename, const std::string& text_content, bool append) { // Renamed text to text_content
+
+    static void
+    write(const std::string &filename, const std::string &text_content, bool append) { // Renamed text to text_content
         std::ofstream output;
         if (append) {
             output.open(filename, std::ios::app);
@@ -753,7 +780,7 @@ public:
         }
         output << text_content;
         output.flush();
-        output.close();   
+        output.close();
     }
 
 // REMOVE THE FOLLOWING DUPLICATE CLASS DEFINITIONS (approx. lines 575-633 in original)
@@ -761,23 +788,24 @@ public:
 // static std::unordered_map<int, std::vector<newkmer>> hashmap; // This was line 635
 // class Position { ... };
 
-    static void write(std::string filename, std::vector<Position> list_param, bool append, std::string auxiliary) { // Renamed list
+    static void
+    write(std::string filename, std::vector<Position> list_param, bool append, std::string auxiliary) { // Renamed list
         std::ofstream output;
         if (append) {
             output.open(filename, std::ios::app);
         } else {
             output.open(filename);
         }
-        
+
         if (!output.is_open()) {
             throw std::runtime_error("Cannot open file: " + filename);
         }
-        
+
         std::ostringstream text_stream;
         int temp_end = 0;
         output << auxiliary;
-        
-        for (Position position_obj : list_param) { // Renamed position
+
+        for (Position position_obj: list_param) { // Renamed position
             int start_val = position_obj.getstartinTar(); // Renamed start
             int end_val = position_obj.getendinTar();     // Renamed end
             text_stream << (start_val - temp_end) << " " << (end_val - start_val) << " ";
@@ -797,17 +825,17 @@ public:
         if (!input.is_open()) {
             throw std::runtime_error("Cannot open file: " + filename);
         }
-        
+
         std::string line;
         std::ostringstream stringbuilder;
         std::vector<int> num_list; // Renamed list to num_list
-        
+
         while (std::getline(input, line)) {
             if (line.find(",") != std::string::npos) {
                 size_t comma_pos = line.find(",");
                 int begin = std::stoi(line.substr(0, comma_pos));
                 int end_val = std::stoi(line.substr(comma_pos + 1)); // Renamed end
-                
+
                 if (num_list.size() > 0) {
                     int prevEnd = num_list.back(); // Use back() for last element
                     if (begin != prevEnd + 1) {
@@ -826,7 +854,7 @@ public:
                 // The original code had a condition `if (line.find("^") == std::string::npos)`
                 // This check is maintained.
                 if (line.find("^") == std::string::npos) {
-                     stringbuilder << line << "\n";
+                    stringbuilder << line << "\n";
                 }
                 num_list.clear();
             }
@@ -878,7 +906,6 @@ public:
                 num_list.clear(); // Cleared after each processed coordinate line
             } else if (str.length() > 0) {
                 stringbuilder << str << "\n";
-                successive = false; // A non-coordinate line might break succession
             }
         }
 
@@ -897,7 +924,7 @@ public:
             std::cerr << "Warning: File " << filename << " not found for 7zip." << std::endl;
             return;
         }
-        
+
         std::string exec = "./7za a " + filename + ".7z " + filename + " -m0=PPMD";
         try {
             int result = std::system(exec.c_str());
@@ -905,7 +932,7 @@ public:
                 std::cerr << "Warning: 7zip command failed with result " << result << std::endl;
             }
             // (void)result; // suppress unused variable warning if not checking result
-        } catch (const std::exception& e) { // Catch standard exceptions
+        } catch (const std::exception &e) { // Catch standard exceptions
             std::cerr << "Exception in use7zip: " << e.what() << std::endl;
         }
     }
@@ -945,13 +972,13 @@ std::unordered_map<int, std::vector<newkmer>> ORGC::hashmap;
 
 
 // main function should be global, not a static member of ORGC
-int main(int argc, char* argv[]) {
-    
+int main(int argc, char *argv[]) {
+
     if (argc != 4) {
         std::cout << "Make sure you have inputted 3 arguments." << std::endl;
         return 0;
     }
-    
+
     std::string reference_genome_path; // Renamed to avoid conflict with ORGC::reference
     std::string target_genome_path;    // Renamed to avoid conflict with ORGC::target
     std::string final_folder = std::string(argv[3]) + "/result"; // output file folder
@@ -960,10 +987,12 @@ int main(int argc, char* argv[]) {
     std::string final_file_path; // Renamed
     int controuble;
     bool is_con;
-    
-    std::string chrName[] = { "chr1.fa", "chr2.fa", "chr3.fa", "chr4.fa", "chr5.fa", "chr6.fa", "chr7.fa", "chr8.fa", "chr9.fa",
-            "chr10.fa", "chr11.fa", "chr12.fa", "chr13.fa", "chr14.fa", "chr15.fa", "chr16.fa", "chr17.fa", "chr18.fa", "chr19.fa", "chr20.fa",
-            "chr21.fa", "chr22.fa", "chrX.fa", "chrY.fa" };
+
+    std::string chrName[] = {"chr1.fa", "chr2.fa", "chr3.fa", "chr4.fa", "chr5.fa", "chr6.fa", "chr7.fa", "chr8.fa",
+                             "chr9.fa",
+                             "chr10.fa", "chr11.fa", "chr12.fa", "chr13.fa", "chr14.fa", "chr15.fa", "chr16.fa",
+                             "chr17.fa", "chr18.fa", "chr19.fa", "chr20.fa",
+                             "chr21.fa", "chr22.fa", "chrX.fa", "chrY.fa"};
 
     // Get system memory info (simplified)
     std::cout << "MAX RAM: Available" << std::endl;
@@ -972,14 +1001,14 @@ int main(int argc, char* argv[]) {
     long startCpuTimeNano = ORGC::getCPUTime(); // ORGC scope
     std::time_t start_time = std::chrono::system_clock::to_time_t(startDate);
     std::cout << "Start time: " << std::ctime(&start_time);
-   
-   std::cout << "Resizing next_kmer..." << std::endl;
-   ORGC::next_kmer.resize(ORGC::maxchar, -1);
-   std::cout << "next_kmer done. Resizing kmer_location..." << std::endl;
-   ORGC::kmer_location.resize(ORGC::maxseq, -1);
-   std::cout << "Both vectors resized." << std::endl;
 
-    
+    std::cout << "Resizing next_kmer..." << std::endl;
+    ORGC::next_kmer.resize(ORGC::maxchar, -1);
+    std::cout << "next_kmer done. Resizing kmer_location..." << std::endl;
+    ORGC::kmer_location.resize(ORGC::maxseq, -1);
+    std::cout << "Both vectors resized." << std::endl;
+
+
     for (int i = 0; i < 24; i++) {
         ORGC::kmer_length = 21; // ORGC scope
 
@@ -987,9 +1016,9 @@ int main(int argc, char* argv[]) {
         is_con = false;
         ORGC::local = true;      // ORGC scope
         ORGC::endref = ORGC::sub_length - 1; // ORGC scope
-        
-        reference_genome_path = std::string(argv[1]) + "/" + chrName[i]; 
-        target_genome_path = std::string(argv[2]) + "/" + chrName[i]; 
+
+        reference_genome_path = std::string(argv[1]) + "/" + chrName[i];
+        target_genome_path = std::string(argv[2]) + "/" + chrName[i];
         final_file_path = final_folder + "/" + chrName[i];
 
         while (ORGC::local) { // ORGC scope
@@ -1008,19 +1037,19 @@ int main(int argc, char* argv[]) {
             std::string reference_seq_content = ORGC::LreadSeq(greference_path); // ORGC scope, renamed var
             std::string target_seq_content = ORGC::LreadSeq(gtarget_path);       // ORGC scope, renamed var
             if (reference_seq_content.empty()) {
-               std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
-               break;
+                std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
+                break;
             }
             if (target_seq_content.empty()) {
-               std::cerr << "Error: Target sequence is empty for " << gtarget_path << std::endl;
-               break;
+                std::cerr << "Error: Target sequence is empty for " << gtarget_path << std::endl;
+                break;
             }
-            
+
             std::cout << "Reference: " << greference_path << " length: " << reference_seq_content.size() << std::endl;
             std::cout << "Target: " << gtarget_path << " length: " << target_seq_content.size() << std::endl;
 
             int target_length_val = target_seq_content.length(); // Renamed var
-            
+
             if (target_length_val < ORGC::sub_length * 5) { // ORGC scope
                 ORGC::local = false; // ORGC scope
                 break;
@@ -1028,7 +1057,7 @@ int main(int argc, char* argv[]) {
                 ORGC::T1 = 0.1;  // ORGC scope
                 ORGC::T2 = 0;    // ORGC scope
             }
-            
+
             std::string auxiliary = ORGC::meta_data + "\n" + std::to_string(ORGC::length) + "\n"; // ORGC scope
 
             std::cout << "Read sequences OK" << std::endl;
@@ -1040,7 +1069,8 @@ int main(int argc, char* argv[]) {
             std::cout << "write 2 OK" << std::endl;
 
             std::cout << "Before std::transform upper" << std::endl;
-            std::transform(reference_seq_content.begin(), reference_seq_content.end(), reference_seq_content.begin(), ::toupper);
+            std::transform(reference_seq_content.begin(), reference_seq_content.end(), reference_seq_content.begin(),
+                           ::toupper);
             std::cout << "After upper ref" << std::endl;
             std::transform(target_seq_content.begin(), target_seq_content.end(), target_seq_content.begin(), ::toupper);
             std::cout << "After upper target" << std::endl;
@@ -1048,7 +1078,7 @@ int main(int argc, char* argv[]) {
             if (stat(tempfile.c_str(), &buffer) == 0) {
                 std::remove(tempfile.c_str());
             }
-            
+
             ORGC::sot = 0;                         // ORGC scope
             ORGC::eot = ORGC::sub_length;          // ORGC scope
             ORGC::sor = 0;                         // ORGC scope
@@ -1056,18 +1086,20 @@ int main(int argc, char* argv[]) {
             Position current_position;             // Renamed var
 
             ORGC::text = ""; // Explicitly reset text for this local attempt if constructor doesn't run here.
-                             // The ORGC utilities object below will reset it.
+            // The ORGC utilities object below will reset it.
 
             while (true) {
-                std::cout << "New segment: sot=" << ORGC::sot << " eot=" << ORGC::eot << " sor=" << ORGC::sor << " eor=" << ORGC::eor << std::endl;
+                std::cout << "New segment: sot=" << ORGC::sot << " eot=" << ORGC::eot << " sor=" << ORGC::sor << " eor="
+                          << ORGC::eor << std::endl;
                 ORGC utilities; // Calls constructor, resets ORGC::text and ORGC::hashmap
                 int kmerlength_val = ORGC::kmer_length; // ORGC scope, Renamed var
 
                 if (ORGC::eor > reference_seq_content.length()) { // ORGC scope
-                  if (ORGC::sot >= target_seq_content.size()) {
-    std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
-    break;
-}
+                    if (ORGC::sot >= target_seq_content.size()) {
+                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
+                                  << target_seq_content.size() << ")" << std::endl;
+                        break;
+                    }
                     ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
                     if (ORGC::text.length() <= 0) { // ORGC scope
                         break;
@@ -1077,10 +1109,11 @@ int main(int argc, char* argv[]) {
                     }
                 }
                 if (ORGC::eot > target_seq_content.length()) { // ORGC scope
-                  if (ORGC::sot >= target_seq_content.size()) {
-    std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
-    break;
-}
+                    if (ORGC::sot >= target_seq_content.size()) {
+                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
+                                  << target_seq_content.size() << ")" << std::endl;
+                        break;
+                    }
                     ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
                     if (ORGC::text.length() <= 0) { // ORGC scope
                         break;
@@ -1094,70 +1127,75 @@ int main(int argc, char* argv[]) {
                 std::cout << "Before substrings" << std::endl;
                 std::string current_ref_segment = reference_seq_content.substr(ORGC::sor, ORGC::eor - ORGC::sor);
                 std::string current_tar_segment = target_seq_content.substr(ORGC::sot, ORGC::eot - ORGC::sot);
-                std::cout << "Created substrings, ref_segment.size(): " << current_ref_segment.size() << " tar_segment.size(): " << current_tar_segment.size() << std::endl;
+                std::cout << "Created substrings, ref_segment.size(): " << current_ref_segment.size()
+                          << " tar_segment.size(): " << current_tar_segment.size() << std::endl;
 
-               ORGC::reference = current_ref_segment;
-               ORGC::target = current_tar_segment;
+                ORGC::reference = current_ref_segment;
+                ORGC::target = current_tar_segment;
 
 
-                std::vector<Position> list_matches = ORGC::Lmatch(current_ref_segment, current_tar_segment, kmerlength_val); // ORGC scope
+                std::vector<Position> list_matches = ORGC::Lmatch(current_ref_segment, current_tar_segment,
+                                                                  kmerlength_val); // ORGC scope
                 std::cout << "Lmatch OK, list_matches.size(): " << list_matches.size() << std::endl;
 
                 if (list_matches.empty()) { // Check .empty() instead of size() <=0
-                    kmerlength_val = 11; 
+                    kmerlength_val = 11;
                     list_matches = ORGC::Lmatch(current_ref_segment, current_tar_segment, kmerlength_val); // ORGC scope
                 }
 
                 if (list_matches.empty()) {
                     ORGC::mismatch++; // ORGC scope
-                    
+
                     if (ORGC::eot >= target_seq_content.length() - 1) { // ORGC scope
-                     if (ORGC::sot >= target_seq_content.size()) {
-    std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
-    break;
-}
+                        if (ORGC::sot >= target_seq_content.size()) {
+                            std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
+                                      << target_seq_content.size() << ")" << std::endl;
+                            break;
+                        }
                         ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
                         ORGC::write(tempfile, ORGC::text, true); // ORGC scope
                         break;
                     }
-                    
+
                     if (is_con) {
                         controuble++;
                     }
                     is_con = true;
-                    
+
                     // ORGC::text += ORGC::target + "\n"; // ORGC::target was the segment, use current_tar_segment
-                    ORGC::text += current_tar_segment + "\n"; 
+                    ORGC::text += current_tar_segment + "\n";
                     ORGC::write(tempfile, ORGC::text, true); // ORGC scope
                     ORGC::sot += ORGC::sub_length; // ORGC scope
                     ORGC::eot = ORGC::sot + ORGC::sub_length; // ORGC scope
                     // ORGC::eor += ORGC::sub_length; // This was in original, but sor/eor are for reference, not directly incremented here
-                                                // sor/eor are updated based on match results later.
-                                                // This line might be an error or misinterpretation of original logic.
-                                                // Let's assume sor/eor are updated based on successful matches.
-                                                // If it's a full mismatch, reference window might slide or stay.
-                                                // For now, let's keep it as it was, but it's suspicious.
+                    // sor/eor are updated based on match results later.
+                    // This line might be an error or misinterpretation of original logic.
+                    // Let's assume sor/eor are updated based on successful matches.
+                    // If it's a full mismatch, reference window might slide or stay.
+                    // For now, let's keep it as it was, but it's suspicious.
                     ORGC::eor += ORGC::sub_length; // ORGC scope
 
 
                     int difference = target_seq_content.length() - ORGC::sot; // ORGC scope
 
                     if (difference <= ORGC::kmer_length) { // ORGC scope
-                     if (ORGC::sot >= target_seq_content.size()) {
-    std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
-    break;
-}
+                        if (ORGC::sot >= target_seq_content.size()) {
+                            std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
+                                      << target_seq_content.size() << ")" << std::endl;
+                            break;
+                        }
                         ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
                         ORGC::write(tempfile, ORGC::text, true); // ORGC scope
                         break;
                     } else if (difference < ORGC::sub_length) { // ORGC scope
-                        ORGC::eot = target_seq_content.length() -1; // ORGC scope, -1 might be off by one if length is exclusive
-                                                                 // If target_seq_content.length() is the size, then last index is length-1.
-                                                                 // eot is often exclusive end, or inclusive. Be consistent.
-                                                                 // Assuming eot is exclusive: eot = target_seq_content.length();
-                                                                 // Assuming eot is inclusive: eot = target_seq_content.length() - 1;
-                                                                 // Original code had -1, keeping it.
-                         ORGC::eot = target_seq_content.length(); // If eot is exclusive end for substr
+                        ORGC::eot = target_seq_content.length() -
+                                    1; // ORGC scope, -1 might be off by one if length is exclusive
+                        // If target_seq_content.length() is the size, then last index is length-1.
+                        // eot is often exclusive end, or inclusive. Be consistent.
+                        // Assuming eot is exclusive: eot = target_seq_content.length();
+                        // Assuming eot is inclusive: eot = target_seq_content.length() - 1;
+                        // Original code had -1, keeping it.
+                        ORGC::eot = target_seq_content.length(); // If eot is exclusive end for substr
                     }
 
                     int difference_ref = reference_seq_content.length() - ORGC::sor; // ORGC scope
@@ -1169,10 +1207,11 @@ int main(int argc, char* argv[]) {
                         break;
                     }
                     if (difference_ref <= ORGC::kmer_length) { // ORGC scope
-                     if (ORGC::sot >= target_seq_content.size()) {
-    std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
-    break;
-}
+                        if (ORGC::sot >= target_seq_content.size()) {
+                            std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
+                                      << target_seq_content.size() << ")" << std::endl;
+                            break;
+                        }
                         ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
                         if (ORGC::text.length() <= 0) { // ORGC scope
                             break;
@@ -1195,7 +1234,7 @@ int main(int argc, char* argv[]) {
                 if (controuble > 2)
                     ORGC::mismatch -= controuble; // ORGC scope
                 controuble = 1;
-                
+
                 // format_matches modifies static ORGC::text and ORGC::endref
                 current_position = ORGC::format_matches(list_matches); // ORGC scope
 
@@ -1211,11 +1250,11 @@ int main(int argc, char* argv[]) {
                 ORGC::eor = ORGC::sor + ORGC::sub_length;        // ORGC scope
 
                 // ORGC::write(tempfile, ORGC::text, true); // ORGC::text is ALREADY modified by format_matches.
-                                                         // Writing it again here might duplicate content or write intermediate states.
-                                                         // The original format_matches appends to ORGC::text.
-                                                         // If tempfile is supposed to get the content of ORGC::text, this is okay.
-                                                         // But ORGC::text is a global accumulator.
-                                                         // Let's assume the intent is to write the accumulated text.
+                // Writing it again here might duplicate content or write intermediate states.
+                // The original format_matches appends to ORGC::text.
+                // If tempfile is supposed to get the content of ORGC::text, this is okay.
+                // But ORGC::text is a global accumulator.
+                // Let's assume the intent is to write the accumulated text.
                 ORGC::write(tempfile, ORGC::text, true); // ORGC scope
                 ORGC::text = ""; // Reset ORGC::text after writing its current state to tempfile for this segment.
 
@@ -1223,10 +1262,11 @@ int main(int argc, char* argv[]) {
                 int difference = target_seq_content.length() - ORGC::sot; // ORGC scope
 
                 if (difference <= ORGC::kmer_length) { // ORGC scope
-                  if (ORGC::sot >= target_seq_content.size()) {
-    std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
-    break;
-}
+                    if (ORGC::sot >= target_seq_content.size()) {
+                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
+                                  << target_seq_content.size() << ")" << std::endl;
+                        break;
+                    }
                     ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
                     if (ORGC::text.length() <= 0) { // ORGC scope
                         break;
@@ -1245,10 +1285,11 @@ int main(int argc, char* argv[]) {
                     ORGC::eor = reference_seq_content.length(); // ORGC scope, exclusive end
                 }
                 if (difference_ref <= ORGC::kmer_length) { // ORGC scope
-                  if (ORGC::sot >= target_seq_content.size()) {
-    std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
-    break;
-}
+                    if (ORGC::sot >= target_seq_content.size()) {
+                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
+                                  << target_seq_content.size() << ")" << std::endl;
+                        break;
+                    }
                     ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
                     if (ORGC::text.length() <= 0) { // ORGC scope
                         break;
@@ -1269,55 +1310,56 @@ int main(int argc, char* argv[]) {
             if (!ORGC::local) { // ORGC scope
                 break;
             }
-            
+
             ORGC::postprocess(tempfile, final_file_path); // ORGC scope
             std::remove(tempfile.c_str());
             break; // Exit while(ORGC::local) loop after successful local compression
         } // End of while(ORGC::local) loop
 
         if (!ORGC::local) { // ORGC scope
-        struct stat buffer;
-        if (stat(final_file_path.c_str(), &buffer) == 0) {
-            std::remove(final_file_path.c_str());
-        }
-        
-        std::string greference_path = reference_genome_path; // Renamed
-        std::string gtarget_path = target_genome_path;       // Renamed
-        std::string tempfile = final_folder + "/interim.txt";
+            struct stat buffer;
+            if (stat(final_file_path.c_str(), &buffer) == 0) {
+                std::remove(final_file_path.c_str());
+            }
 
-        std::string reference_seq_content_global = ORGC::GreadrefSeq(greference_path); // ORGC scope
-        std::string target_seq_content_global = ORGC::GreadtarSeq(gtarget_path, final_file_path); // ORGC scope
-        if (reference_seq_content_global.empty()) {
-            std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
-            continue;
-         }
-         if (target_seq_content_global.empty()) {
-            std::cerr << "Error: Target sequence is empty for " << gtarget_path << std::endl;
-            continue;
-         }
+            std::string greference_path = reference_genome_path; // Renamed
+            std::string gtarget_path = target_genome_path;       // Renamed
+            std::string tempfile = final_folder + "/interim.txt";
 
-        if (stat(tempfile.c_str(), &buffer) == 0) {
+            std::string reference_seq_content_global = ORGC::GreadrefSeq(greference_path); // ORGC scope
+            std::string target_seq_content_global = ORGC::GreadtarSeq(gtarget_path, final_file_path); // ORGC scope
+            if (reference_seq_content_global.empty()) {
+                std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
+                continue;
+            }
+            if (target_seq_content_global.empty()) {
+                std::cerr << "Error: Target sequence is empty for " << gtarget_path << std::endl;
+                continue;
+            }
+
+            if (stat(tempfile.c_str(), &buffer) == 0) {
+                std::remove(tempfile.c_str());
+            }
+
+            std::string full_reference_seq = reference_seq_content_global;
+            std::string full_target_seq = target_seq_content_global;
+
+            ORGC::reference = full_reference_seq;
+            ORGC::target = full_target_seq;
+            ORGC::target = full_target_seq; // Set ORGC::target for the context of Gmatch results
+
+            std::vector<Position> list_global_matches = ORGC::Gmatch(full_reference_seq, full_target_seq,
+                                                                     ORGC::kmer_length); // ORGC scope
+
+            if (!ORGC::target.empty() && !list_global_matches.empty()) {
+                ORGC::format_matches(list_global_matches, tempfile); // ORGC scope
+                ORGC::postprocess(tempfile, final_file_path);      // ORGC scope
+            } else {
+                std::cerr << "Warning: target sequence or matches are empty for " << chrName[i] << std::endl;
+            }
+
             std::remove(tempfile.c_str());
         }
-        
-        std::string full_reference_seq = reference_seq_content_global; 
-        std::string full_target_seq = target_seq_content_global;
-
-        ORGC::reference = full_reference_seq;
-        ORGC::target = full_target_seq;
-        ORGC::target = full_target_seq; // Set ORGC::target for the context of Gmatch results
-
-        std::vector<Position> list_global_matches = ORGC::Gmatch(full_reference_seq, full_target_seq, ORGC::kmer_length); // ORGC scope
-
-        if (!ORGC::target.empty() && !list_global_matches.empty()) {
-            ORGC::format_matches(list_global_matches, tempfile); // ORGC scope
-            ORGC::postprocess(tempfile, final_file_path);      // ORGC scope
-        } else {
-            std::cerr << "Warning: target sequence or matches are empty for " << chrName[i] << std::endl;
-        }
-        
-        std::remove(tempfile.c_str());
-    }
     } // End of for loop (chromosomes)
 
     ORGC::use7zip(final_folder); // ORGC scope
@@ -1325,6 +1367,6 @@ int main(int argc, char* argv[]) {
     long taskCPUTimeNano = ORGC::getCPUTime() - startCpuTimeNano; // ORGC scope
     std::cout << "Compressed time: " << (double) taskCPUTimeNano / 1000000000.0 << " seconds." << std::endl;
     std::cout << "-----------------------------------------------------" << std::endl;
-    
+
     return 0;
 }
