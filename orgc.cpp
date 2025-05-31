@@ -656,19 +656,6 @@ public:
             mismatch++; // ORGC::mismatch
         }
         
-        if (!list_param.empty()) {
-            int endinTar_last = list_param.back().getendinTar();
-            if (endinTar_last < target.length() - 1) {
-                std::string tail = target.substr(endinTar_last + 1, target.length() - (endinTar_last + 1));
-                if (!tail.empty()) {
-                    // For text accumulation version:
-                    text += tail + "\n";
-                    // For stringstream/file version:
-                    // stringbuilder << tail << "\n";
-                }
-            }
-        }
-
         return list_param.back(); // Returns last element
     }
     
@@ -712,22 +699,10 @@ public:
         if (endinTar_val < (target.length() - 1)) { // ORGC::target
             // Bounds check for substr
             if (endinTar_val + 1 < target.length()) {
-                stringbuilder << target.substr(endinTar_val + 1, (target.length()) - (endinTar_val + 1)) << "\n"; // ORGC::target
+                 stringbuilder << target.substr(endinTar_val + 1, (target.length()) - (endinTar_val + 1)); // ORGC::target
             }
         }
         write(fileName, stringbuilder.str(), true); // ORGC::write
-        if (!list_param.empty()) {
-            int endinTar_last = list_param.back().getendinTar();
-            if (endinTar_last < target.length() - 1) {
-                std::string tail = target.substr(endinTar_last + 1, target.length() - (endinTar_last + 1));
-                if (!tail.empty()) {
-                    // For text accumulation version:
-                    text += tail + "\n";
-                    // For stringstream/file version:
-                    // stringbuilder << tail << "\n";
-                }
-            }
-        }
     }
     
     static std::vector<Position> format_matches_N(const std::string& sequence) { // Renamed to avoid overload ambiguity if types were closer
@@ -1156,6 +1131,12 @@ int main(int argc, char* argv[]) {
                     ORGC::write(tempfile, ORGC::text, true); // ORGC scope
                     ORGC::sot += ORGC::sub_length; // ORGC scope
                     ORGC::eot = ORGC::sot + ORGC::sub_length; // ORGC scope
+                    // ORGC::eor += ORGC::sub_length; // This was in original, but sor/eor are for reference, not directly incremented here
+                                                // sor/eor are updated based on match results later.
+                                                // This line might be an error or misinterpretation of original logic.
+                                                // Let's assume sor/eor are updated based on successful matches.
+                                                // If it's a full mismatch, reference window might slide or stay.
+                                                // For now, let's keep it as it was, but it's suspicious.
                     ORGC::eor += ORGC::sub_length; // ORGC scope
 
 
@@ -1170,8 +1151,13 @@ int main(int argc, char* argv[]) {
                         ORGC::write(tempfile, ORGC::text, true); // ORGC scope
                         break;
                     } else if (difference < ORGC::sub_length) { // ORGC scope
-                        ORGC::eot = target_seq_content.length() -1; 
-                         ORGC::eot = target_seq_content.length(); 
+                        ORGC::eot = target_seq_content.length() -1; // ORGC scope, -1 might be off by one if length is exclusive
+                                                                 // If target_seq_content.length() is the size, then last index is length-1.
+                                                                 // eot is often exclusive end, or inclusive. Be consistent.
+                                                                 // Assuming eot is exclusive: eot = target_seq_content.length();
+                                                                 // Assuming eot is inclusive: eot = target_seq_content.length() - 1;
+                                                                 // Original code had -1, keeping it.
+                         ORGC::eot = target_seq_content.length(); // If eot is exclusive end for substr
                     }
 
                     int difference_ref = reference_seq_content.length() - ORGC::sor; // ORGC scope
@@ -1218,13 +1204,20 @@ int main(int argc, char* argv[]) {
                     break;
                 }
 
-                ORGC::sot += current_position.getendinTar() + 1; 
-                ORGC::eot = ORGC::sot + ORGC::sub_length;
-                ORGC::sor += ORGC::endref + 1;                  
-                ORGC::endref = 0; 
-                ORGC::eor = ORGC::sor + ORGC::sub_length;  
+                ORGC::sot += current_position.getendinTar() + 1; // ORGC scope
+                ORGC::eot = ORGC::sot + ORGC::sub_length;        // ORGC scope
+                ORGC::sor += ORGC::endref + 1;                   // ORGC scope
+                ORGC::endref = 0; // Reset for next segment's format_matches call. ORGC::sub_length -1 is initial.
+                ORGC::eor = ORGC::sor + ORGC::sub_length;        // ORGC scope
+
+                // ORGC::write(tempfile, ORGC::text, true); // ORGC::text is ALREADY modified by format_matches.
+                                                         // Writing it again here might duplicate content or write intermediate states.
+                                                         // The original format_matches appends to ORGC::text.
+                                                         // If tempfile is supposed to get the content of ORGC::text, this is okay.
+                                                         // But ORGC::text is a global accumulator.
+                                                         // Let's assume the intent is to write the accumulated text.
                 ORGC::write(tempfile, ORGC::text, true); // ORGC scope
-                ORGC::text = ""; 
+                ORGC::text = ""; // Reset ORGC::text after writing its current state to tempfile for this segment.
 
 
                 int difference = target_seq_content.length() - ORGC::sot; // ORGC scope
@@ -1243,20 +1236,21 @@ int main(int argc, char* argv[]) {
                     }
 
                 } else if (difference < ORGC::sub_length) { // ORGC scope
-                    ORGC::eot = target_seq_content.length(); 
+                    ORGC::eot = target_seq_content.length(); // ORGC scope, exclusive end
+                }
 
                 int difference_ref = reference_seq_content.length() - ORGC::sor; // ORGC scope
 
-                if (difference_ref < ORGC::sub_length) { 
-                    ORGC::eor = reference_seq_content.length(); 
+                if (difference_ref < ORGC::sub_length) { // ORGC scope
+                    ORGC::eor = reference_seq_content.length(); // ORGC scope, exclusive end
                 }
-                if (difference_ref <= ORGC::kmer_length) { 
+                if (difference_ref <= ORGC::kmer_length) { // ORGC scope
                   if (ORGC::sot >= target_seq_content.size()) {
     std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() (" << target_seq_content.size() << ")" << std::endl;
     break;
 }
-                    ORGC::text = target_seq_content.substr(ORGC::sot); 
-                    if (ORGC::text.length() <= 0) { 
+                    ORGC::text = target_seq_content.substr(ORGC::sot); // ORGC scope
+                    if (ORGC::text.length() <= 0) { // ORGC scope
                         break;
                     } else {
                         if (ORGC::text.length() > (ORGC::sub_length * ORGC::T1)) { // ORGC scope
@@ -1270,7 +1264,7 @@ int main(int argc, char* argv[]) {
                         break;
                     }
                 }
-            } 
+            } // End of inner while(true) loop for segments
 
             if (!ORGC::local) { // ORGC scope
                 break;
@@ -1278,8 +1272,9 @@ int main(int argc, char* argv[]) {
             
             ORGC::postprocess(tempfile, final_file_path); // ORGC scope
             std::remove(tempfile.c_str());
-            break; 
-        } 
+            break; // Exit while(ORGC::local) loop after successful local compression
+        } // End of while(ORGC::local) loop
+
         if (!ORGC::local) { // ORGC scope
         struct stat buffer;
         if (stat(final_file_path.c_str(), &buffer) == 0) {
@@ -1323,7 +1318,7 @@ int main(int argc, char* argv[]) {
         
         std::remove(tempfile.c_str());
     }
-    }
+    } // End of for loop (chromosomes)
 
     ORGC::use7zip(final_folder); // ORGC scope
     std::cout << "All Done" << std::endl;
