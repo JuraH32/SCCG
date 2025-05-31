@@ -3,66 +3,61 @@
 
 #include <string>
 #include <vector>
-#include "KmerIndex.h" // Assumed to be in the same directory or include path
+#include <unordered_map>
+#include "KmerIndex.h"
+#include "Position.h" // Include the Position struct
 
-// Structure to represent a match between reference and target sequences
-struct Match {
-    size_t ref_pos;    // Starting position of the match in the reference sequence
-    size_t target_pos; // Starting position of the match in the target sequence
-    size_t length;     // Length of the matched segment
+// Defines the result of a match or a segment of mismatch
+struct AlignmentSegment {
+    Position region;             // Coordinates of the segment.
+                                 // For matches: all 4 coords are relevant.
+                                 // For mismatches: only target coords are relevant, ref coords are -1.
+    std::string mismatched_sequence; // Stores the sequence of the mismatch if is_match is false.
+    bool is_match;               // True if this entry represents a match, false if it's a mismatch block.
 
-    // Default constructor
-    Match(size_t r_pos = 0, size_t t_pos = 0, size_t len = 0)
-            : ref_pos(r_pos), target_pos(t_pos), length(len) {}
+    // Constructor for a successful match
+    AlignmentSegment(int ref_start_pos, int tar_start_pos, int length)
+        : mismatched_sequence(""), is_match(true) {
+        if (length <= 0) {
+            is_match = true; // Assuming length > 0 based on call site logic
+        }
+        region.setStartInReference(ref_start_pos);
+        region.setEndInReference(ref_start_pos + length - 1);
+        region.setStartInTarget(tar_start_pos);
+        region.setEndInTarget(tar_start_pos + length - 1);
+    }
 
-    // Optional: For debugging or more complex logic, an equality operator
-    bool operator==(const Match& other) const {
-        return ref_pos == other.ref_pos &&
-               target_pos == other.target_pos &&
-               length == other.length;
+    // Constructor for a mismatch
+    AlignmentSegment(const std::string& mismatch_str, int tar_start_pos)
+        : mismatched_sequence(mismatch_str), is_match(false) {
+        region.setStartInTarget(tar_start_pos);
+        if (!mismatch_str.empty()) {
+            region.setEndInTarget(tar_start_pos + static_cast<int>(mismatch_str.length()) - 1);
+        } else {
+            region.setEndInTarget(tar_start_pos -1); // Or tar_start_pos if 0-length mismatch means single point
+        }
+        // Reference positions in 'region' will remain -1 (default from Position constructor)
     }
 };
 
 class MatchFinder {
-private:
-    const KmerIndex& ref_kmer_index;  // Reference to the k-mer index of the reference genome
-    const std::string& reference_seq; // Reference to the reference genome sequence string
-    const std::string& target_seq;    // Reference to the target genome sequence string
-    int k_mer_size;                   // The k-mer size used for indexing and initial seeding of matches
-
-    // Minimum length for a match to be considered significant.
-    // Matches shorter than this (or k_mer_size, whichever is larger) might be ignored.
-    static const size_t DEFAULT_MIN_MATCH_LEN = 5;
-
 public:
-    /**
-     * @brief Constructs a MatchFinder object.
-     * @param kmer_index_param A const reference to a pre-built KmerIndex of the reference sequence.
-     * @param reference_sequence_param A const reference to the reference genome sequence.
-     * @param target_sequence_param A const reference to the target genome sequence.
-     * @param k_val_param The k-mer size used for the KmerIndex and for seeding matches. Must be positive.
-     */
-    MatchFinder(const KmerIndex& kmer_index_param,
-                const std::string& reference_sequence_param,
-                const std::string& target_sequence_param,
-                int k_val_param);
+    MatchFinder(const std::string& reference, const std::string& target, 
+                size_t kmer_size, size_t search_range = 100); // search_range default was in .cpp, better in .h
+    
+    std::vector<AlignmentSegment> findMatches(bool global = true);
 
-    /**
-     * @brief Finds significant, non-overlapping matches between the target and reference sequences.
-     *
-     * This method employs a greedy strategy:
-     * 1. Iterate through the target sequence.
-     * 2. At each position, attempt to find the longest possible match with the reference sequence,
-     * seeded by k-mers.
-     * 3. If a match meeting the minimum length criteria is found, it's added to the results,
-     * and the search in the target sequence jumps past this match.
-     * 4. If no significant match is found, the search advances by one character in the target.
-     *
-     * @return A vector of Match objects, ordered by their appearance in the target sequence.
-     * The regions in the target sequence not covered by these matches are considered mismatches
-     * by the subsequent encoding steps.
-     */
-    std::vector<Match> findSignificantMatches();
+private:
+    const std::string& reference;
+    const std::string& target;
+    size_t kmer_size;
+    size_t search_range;
+    KmerIndex kmerIndex; // Was std::unordered_multimap<std::string, size_t> kmer_hash;
+
+    void buildKmerIndex(const std::string& sequence); // Renamed from buildKmerHash
+    size_t extendMatch(size_t ref_pos, size_t target_pos);
+
+    static const size_t DEFAULT_MIN_MATCH_LEN = 3; // Example, if needed
 };
 
 #endif // MATCH_FINDER_H

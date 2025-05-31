@@ -10,7 +10,7 @@
 // where that k-mer occurs in the sequence.
 class KmerIndex {
 private:
-    int k_size;
+    size_t k_size;
     // The index itself: a hash map where keys are k-mers (strings)
     // and values are vectors of starting positions (size_t) of that k-mer.
     std::unordered_map<std::string, std::vector<size_t>> index;
@@ -21,7 +21,7 @@ public:
      * @param k The size of the k-mers to index. Defaults to 12 if not specified or if an invalid value is given.
      * It's recommended to choose k based on sequence characteristics and memory constraints.
      */
-    KmerIndex(int k = 12);
+    KmerIndex(size_t k = 12);
 
     /**
      * @brief Builds the k-mer index from a given DNA/protein sequence.
@@ -47,7 +47,7 @@ public:
      * @brief Gets the k-mer size used for this index.
      * @return The k-mer size (int).
      */
-    int getKmerSize() const;
+    size_t getKmerSize() const;
 };
 
 #endif // KMER_INDEX_H

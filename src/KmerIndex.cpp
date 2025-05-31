@@ -3,7 +3,7 @@
 
 // Constructor for KmerIndex.
 // Initializes the k-mer size. If k is not positive, it defaults to 12.
-KmerIndex::KmerIndex(int k) : k_size(k) {
+KmerIndex::KmerIndex(size_t k) : k_size(k) {
     if (this->k_size <= 0) {
         std::cerr << "Warning: K-mer size must be positive. Using default of 12 instead of " << k << "." << std::endl;
         this->k_size = 12; // Fallback to a common default k-mer size.
@@ -45,6 +45,6 @@ const std::vector<size_t>* KmerIndex::findKmer(const std::string& kmer) const {
 }
 
 // Getter for the k-mer size.
-int KmerIndex::getKmerSize() const {
+size_t KmerIndex::getKmerSize() const {
     return k_size;
 }
