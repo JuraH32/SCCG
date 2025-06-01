@@ -71,7 +71,7 @@ public:
     static int sub_length, limit;
     static double T1;
     static int T2;
-    static int sot, eot, sor, eor; // start of target,end of target,start of reference,end of reference
+    static int sot, eot, sor, eor; 
     static int length, mismatch, endref;
     static const int maxchar = 268435456; // 2^28
     static const int maxseq = 268435456 * 2; // 2^29
@@ -80,13 +80,11 @@ public:
     static std::vector<int> next_kmer;
     static std::vector<int> kmer_location;
 
-    // Constructor
     ORGC() {
         text = "";
         hashmap = std::unordered_map<int, std::vector<newkmer>>();
     }
 
-    // Java String.hashCode() equivalent
     static int stringHashCode(const std::string &str) {
         int hash = 0;
         for (char c: str) {
@@ -114,11 +112,10 @@ public:
         char temp_ch;
         bool base = false;
 
-        // Meta data is important only from target sequence when scale is local
         if (sequenceType == SequenceType::TARGET && scaleType == ScaleType::LOCAL) {
-            std::getline(file, meta_data); // Chromosome label
+            std::getline(file, meta_data); 
         } else {
-            std::getline(file, line); // Skip first line for global matching
+            std::getline(file, line); 
         }
 
         while (std::getline(file, line)) {
@@ -143,7 +140,6 @@ public:
         return stringbuilder.str();
     }
 
-    // read target sequence for global matching
     static std::string GreadtarSeq(const std::string &sequenceFileName, const std::string &fileName) {
         std::ifstream file(sequenceFileName);
         if (!file.is_open()) {
@@ -158,7 +154,7 @@ public:
         std::stringstream Llist;
         std::stringstream Nlist;
 
-        std::string meta_data_local, line;  //to avoid conflict with static meta_data
+        std::string meta_data_local, line;  
 
         int line_length, totallength = 0, Llen = 0, Nlen = 0, last_L = 0, last_N = 0, start_L = 0,
                 start_N = 0;
@@ -254,10 +250,9 @@ public:
         return stringbuilder.str();
     }
 
-    // build local hash table
     static void buildLhashtable(const std::string &read,
-                                int kmer_length_param) {  //kmer_length to avoid shadowing static member
-        int current_length = read.length(), i = kmer_length_param; // Use param
+                                int kmer_length_param) {   to avoid shadowing static member
+        int current_length = read.length(), i = kmer_length_param; 
         std::string Nkmer = "";
         while (i > 0) {
             Nkmer += "N";
@@ -267,14 +262,11 @@ public:
         int Nkey = stringHashCode(Nkmer);
         i = 0;
 
-        // std::cout << "buildLhashtable: current_length = " << current_length << ", kmer_length_param = "
-        //           << kmer_length_param << std::endl;
         int count = 0;
 
         while (i < current_length - kmer_length_param + 1) {
-            // if (++count % 5000 == 0) std::cout << "Adding kmer #" << count << std::endl;
 
-            std::string kmer_str = read.substr(i, kmer_length_param); // Use param, renamed kmer to kmer_str
+            std::string kmer_str = read.substr(i, kmer_length_param); , renamed kmer to kmer_str
             newkmer newKMer;
             newKMer.setkmerstart(i);
             newKMer.setkmer(kmer_str);
@@ -295,21 +287,17 @@ public:
                 }
             }
         }
-        // std::cout << "Exiting buildLhashtable normally" << std::endl;
     }
 
-    // build global hash table
-    static void buildGhashtable(const std::string &read, int kmer_length_param) {  //kmer_length
-        int iteration = read.length() - kmer_length_param + 1; // Use param
+    static void buildGhashtable(const std::string &read, int kmer_length_param) {  
+        int iteration = read.length() - kmer_length_param + 1; 
 
         for (int i = 0; i < maxseq; i++) {
             kmer_location[i] = -1;
         }
         for (int i = 0; i < iteration; i++) {
-            // if (i % 1000000 == 0) {
-            //     std::cout << "buildGhashtable: Processing kmer at index " << i << std::endl;
-            // }
-            std::string kmer_str = read.substr(i, kmer_length_param); // Use param, renamed kmer
+
+            std::string kmer_str = read.substr(i, kmer_length_param); 
             long key = std::abs(static_cast<long>(stringHashCode(kmer_str)));
 
             if (key == -2147483648LL) {
@@ -327,7 +315,7 @@ public:
     static std::vector<Position> lowercase_position(const std::string &sequence) {
         std::vector<Position> list;
         bool successive = false;
-        int start = 0, current_end = 0;  //end to current_end
+        int start = 0, current_end = 0; 
 
         for (int i = 0; i < sequence.length(); i++) {
             if (std::islower(sequence[i])) {
@@ -354,17 +342,13 @@ public:
         if (successive) {
             Position position;
             position.setstartinTar(start);
-            position.setendinTar(current_end); // Corrected: was end, should be current_end
+            position.setendinTar(current_end); 
             list.push_back(position);
         }
         return list;
     }
 
-    static int get_incre(int endinRef_param, int endinTar_param, int Refendindex, int Tarendindex) {  //params
-        // std::cout << "get_incre called with endinRef_param: " << endinRef_param
-        //           << " endinTar_param: " << endinTar_param
-        //           << " Refendindex: " << Refendindex
-        //           << " Tarendindex: " << Tarendindex << std::endl;
+    static int get_incre(int endinRef_param, int endinTar_param, int Refendindex, int Tarendindex) {  
 
         int position = 0;
         int endIndex;
@@ -376,13 +360,12 @@ public:
         }
 
         for (int i = 1; i < endIndex; i++) {
-            // BOUNDS CHECK
             if ((endinTar_param + i) >= target.size() || (endinRef_param + i) >= reference.size())
                 std::cerr << "OUT OF BOUNDS: endinTar_param + i = " << (endinTar_param + i)
                           << " target.size() = " << target.size()
                           << ", endinRef_param + i = " << (endinRef_param + i)
                           << " reference.size() = " << reference.size() << std::endl;
-            break; // Prevent out-of-bounds
+            break; 
             if (target[endinTar_param + i] == reference[endinRef_param + i]) {
                 position++;
             } else {
@@ -393,24 +376,20 @@ public:
         return position;
     }
 
-    // local match
     static std::vector<Position>
-    Lmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) {  //params
+    Lmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) {  
         std::vector<Position> list;
         int index = 0, startIndex;
-        int increment, most_incre, key_val;  //key to key_val
-        int kmerstart_val, endinRef_val, endinTar_val, Refendindex, Tarendindex;  //params
-        std::string kmer_str;  //kmer
+        int increment, most_incre, key_val; 
+        int kmerstart_val, endinRef_val, endinTar_val, Refendindex, Tarendindex;  
+        std::string kmer_str;  
 
-        // std::cout << "In Lmatch, ref_seq.size(): " << ref_seq.size() << " tar_seq.size(): " << tar_seq.size()
-        //           << " kmer_len: " << kmer_len << std::endl;
         buildLhashtable(ref_seq, kmer_len);
-        // std::cout << "buildLhashtable OK" << std::endl;
 
         while (true) {
             increment = 0;
             most_incre = 0;
-            if (index + kmer_len > tar_seq.length()) { // Check before substr
+            if (index + kmer_len > tar_seq.length()) { 
                 break;
             }
             kmer_str = tar_seq.substr(index, kmer_len);
@@ -433,27 +412,27 @@ public:
                     kmerstart_val = newKMer.getkmerstart();
                     endinRef_val = kmerstart_val + kmer_len - 1;
                     endinTar_val = index + kmer_len - 1;
-                    Refendindex = ref_seq.length() - 1; // Use ref_seq
-                    Tarendindex = tar_seq.length() - 1; // Use tar_seq                   	
+                    Refendindex = ref_seq.length() - 1; 
+                    Tarendindex = tar_seq.length() - 1;                   	
                     increment = get_incre(endinRef_val, endinTar_val, Refendindex,
-                                          Tarendindex); // Pass local endinRef/Tar
+                                          Tarendindex); 
 
                     if (klist.size() > 1) {
                         if (increment == most_incre) {
                             if (list.size() >
-                                1) { // Should be list.size() > 0 for safety, or check if list is not empty
-                                int lastEIR = list.back().getendinRef(); // Use back() for last element
+                                1) {
+                                int lastEIR = list.back().getendinRef(); 
                                 if (std::abs(kmerstart_val - lastEIR) <
-                                    std::abs(startIndex - lastEIR)) // Compare absolute differences
+                                    std::abs(startIndex - lastEIR)) 
                                     startIndex = kmerstart_val;
-                            } else if (list.empty()) { // If list is empty, this is the first potential match
+                            } else if (list.empty()) {
                                 startIndex = kmerstart_val;
                             }
                         } else if (increment > most_incre) {
                             most_incre = increment;
                             startIndex = kmerstart_val;
                         }
-                    } else { // klist.size() == 1
+                    } else { 
                         most_incre = increment;
                         startIndex = kmerstart_val;
                         break;
@@ -469,14 +448,14 @@ public:
                 continue;
             }
 
-            Position position_obj;  //position
+            Position position_obj;  
             position_obj.setstartinTar(index);
             position_obj.setendinTar(index + kmer_len + most_incre - 1);
             position_obj.setstartinRef(startIndex);
             position_obj.setendinRef(startIndex + kmer_len + most_incre - 1);
             list.push_back(position_obj);
             index = index + kmer_len + most_incre +
-                    1; // Should be most_incre, not most_incre + 1, if get_incre returns count of matching chars
+                    1; 
             if (index + kmer_len > tar_seq.length()) {
                 break;
             }
@@ -485,22 +464,22 @@ public:
     }
 
     static std::vector<Position>
-    Gmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) {  //params
+    Gmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) {  
         std::vector<Position> list;
         int index = 0, startIndex, lastEIR = 0;
-        std::string kmer_str;  //kmer
+        std::string kmer_str;  
 
-        buildGhashtable(ref_seq, kmer_len); // Pass ref_seq and kmer_len
+        buildGhashtable(ref_seq, kmer_len); 
 
         while (true) {
             int increment = 0, most_incre = 0;
-            if (index + kmer_len > tar_seq.length()) { // Check before substr
+            if (index + kmer_len > tar_seq.length()) { 
                 break;
             }
             kmer_str = tar_seq.substr(index, kmer_len);
-            int key_val = std::abs(stringHashCode(kmer_str));  //key
+            int key_val = std::abs(stringHashCode(kmer_str));  
 
-            if (key_val == -2147483648) { // This condition will never be true due to std::abs
+            if (key_val == -2147483648) { 
                 key_val = 0;
             }
             while (key_val > maxseq - 1) {
@@ -518,25 +497,25 @@ public:
 
             startIndex = std::numeric_limits<int>::max();
             most_incre = 0;
-            bool match_found = false;  //match to match_found
+            bool match_found = false; 
 
             for (int k = kmer_location[key_val]; k != -1; k = next_kmer[k]) {
                 increment = 0;
-                if (k + kmer_len > ref_seq.length()) continue; // Bounds check for Rkmer
+                if (k + kmer_len > ref_seq.length()) continue; 
                 std::string Rkmer = ref_seq.substr(k, kmer_len);
                 if (kmer_str != Rkmer) {
                     continue;
                 }
                 try {
-                    if (!list.empty()) { // Check if list is not empty before accessing
+                    if (!list.empty()) { 
                         lastEIR = list.back().getendinRef();
                     } else {
-                        lastEIR = 0; // Default if list is empty
+                        lastEIR = 0; 
                     }
-                } catch (...) { // Catch specific exceptions if possible
+                } catch (...) { 
                     lastEIR = 0;
                 }
-                if (std::abs(k - lastEIR) > limit) { // Check absolute difference against limit
+                if (std::abs(k - lastEIR) > limit) { 
                     continue;
                 }
 
@@ -550,21 +529,21 @@ public:
                     increment++;
                 }
                 if (increment == most_incre) {
-                    if (!list.empty()) { // Check if list is not empty
-                        if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR)) // Compare absolute differences
+                    if (!list.empty()) { 
+                        if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR)) 
                             startIndex = k;
                     } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
-                        startIndex = k; // If list is empty, this is the first potential match
+                        startIndex = k; 
                     }
                 } else if (increment > most_incre) {
                     most_incre = increment;
                     startIndex = k;
                 }
             }
-            if (!match_found) { // Redundant loop, logic should be combined or re-evaluated
+            if (!match_found) {
                 for (int k = kmer_location[key_val]; k != -1; k = next_kmer[k]) {
                     increment = 0;
-                    if (k + kmer_len > ref_seq.length()) continue; // Bounds check
+                    if (k + kmer_len > ref_seq.length()) continue;
                     std::string Rkmer = ref_seq.substr(k, kmer_len);
                     if (kmer_str != Rkmer) {
                         continue;
@@ -580,8 +559,8 @@ public:
                         increment++;
                     }
                     if (increment == most_incre) {
-                        if (!list.empty()) { // Check if list is not empty
-                            if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR)) // Compare absolute differences
+                        if (!list.empty()) { 
+                            if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR)) 
                                 startIndex = k;
                         } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
                             startIndex = k;
@@ -601,13 +580,13 @@ public:
                 continue;
             }
 
-            Position position_obj;  //position
+            Position position_obj;  
             position_obj.setstartinTar(index);
             position_obj.setendinTar(index + kmer_len + most_incre - 1);
             position_obj.setstartinRef(startIndex);
             position_obj.setendinRef(startIndex + kmer_len + most_incre - 1);
             list.push_back(position_obj);
-            index = index + kmer_len + most_incre + 1; // As in LMatch, consider if +1 is needed
+            index = index + kmer_len + most_incre + 1;
             if (index + kmer_len > tar_seq.length()) {
                 break;
             }
@@ -615,15 +594,10 @@ public:
         return list;
     }
 
-    static Position format_matches(const std::vector<Position> &list_param) {  //list
-        // This function uses static `text`, `target`, `sor`, `sub_length`, `T1`, `mismatch`, `endref`
+    static Position format_matches(const std::vector<Position> &list_param) {  
         int startinTar_val, startinRef_val, endinRef_val;
         int trouble = 0;
-        if (list_param.empty()) { // Handle empty list
-            // Decide what to return or throw an error. Returning an empty/default Position might be an option.
-            // For now, let's assume it implies no match and doesn't modify static `text`.
-            // However, the original code would crash here: list[list.size() - 1]
-            // Returning a default constructed Position if list is empty.
+        if (list_param.empty()) { 
             return Position();
         }
 
@@ -633,56 +607,55 @@ public:
                 startinTar_val = list_param[i].getstartinTar();
                 startinRef_val = list_param[i].getstartinRef();
                 endinRef_val = list_param[i].getendinRef();
-                if (endinRef_val >= endref) { // ORGC::endref
-                    endref = endinRef_val;    // ORGC::endref
+                if (endinRef_val >= endref) { 
+                    endref = endinRef_val;    
                 }
 
                 if (startinTar_val > 0) {
-                    std::string preamble = target.substr(0, startinTar_val); // ORGC::target
-                    text += preamble + "\n"; // ORGC::text
+                    std::string preamble = target.substr(0, startinTar_val); 
+                    text += preamble + "\n"; 
                     trouble += preamble.length();
                 }
                 text += "" + std::to_string(startinRef_val + sor) + "," + std::to_string(endinRef_val + sor) +
-                        "\n"; // ORGC::text, ORGC::sor
+                        "\n"; 
                 continue;
             }
 
             startinTar_val = list_param[i].getstartinTar();
             startinRef_val = list_param[i].getstartinRef();
             endinRef_val = list_param[i].getendinRef();
-            if (endinRef_val >= endref) { // ORGC::endref
-                endref = endinRef_val;    // ORGC::endref
+            if (endinRef_val >= endref) { 
+                endref = endinRef_val;    
             }
 
             int endinTarPrev = list_param[i - 1].getendinTar();
             // Bounds check for substr
             if (endinTarPrev + 1 < startinTar_val) {
                 std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev +
-                                                                                             1)); // ORGC::target, renamed mismatch
+                                                                                             1)); , renamed mismatch
                 if (mismatch_str.length() > 0) {
-                    text += mismatch_str + "\n"; // ORGC::text
+                    text += mismatch_str + "\n"; 
                     trouble += mismatch_str.length();
                 }
             } else if (endinTarPrev + 1 == startinTar_val) {
-                // No mismatch, string would be empty
+                // No mismatch
             } else {
-                // Overlapping or invalid sequence of matches, handle error or log
+                // Overlapping or invalid sequence of matches
             }
 
 
             text += std::to_string(startinRef_val + sor) + "," + std::to_string(endinRef_val + sor) +
-                    "\n"; // ORGC::text, ORGC::sor
+                    "\n"; 
         }
         if (trouble > (sub_length * T1)) // ORGC::sub_length, ORGC::T1
         {
-            mismatch++; // ORGC::mismatch
+            mismatch++; 
         }
 
-        return list_param.back(); // Returns last element
+        return list_param.back(); 
     }
 
-    static void format_matches(const std::vector<Position> &list_param, const std::string &fileName) {  //list
-        // This function uses static `target`
+    static void format_matches(const std::vector<Position> &list_param, const std::string &fileName) {  
         std::stringstream stringbuilder;
 
         int startinTar_val, startinRef_val, endinRef_val, endinTar_val = 0;
@@ -693,7 +666,7 @@ public:
                 startinRef_val = list_param[i].getstartinRef();
                 endinRef_val = list_param[i].getendinRef();
                 if (startinTar_val > 0) {
-                    std::string preamble = target.substr(0, startinTar_val); // ORGC::target
+                    std::string preamble = target.substr(0, startinTar_val); 
                     stringbuilder << preamble << "\n";
                 }
                 stringbuilder << startinRef_val << "," << endinRef_val << "\n";
@@ -705,35 +678,33 @@ public:
             endinRef_val = list_param[i].getendinRef();
             endinTar_val = list_param[i].getendinTar();
             int endinTarPrev = list_param[i - 1].getendinTar();
-            // Bounds check for substr
             if (endinTarPrev + 1 < startinTar_val) {
                 std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev +
-                                                                                             1)); // ORGC::target, renamed mismatch
+                                                                                             1)); , renamed mismatch
                 if (mismatch_str.length() > 0) {
                     stringbuilder << mismatch_str << "\n";
                 }
             } else if (endinTarPrev + 1 == startinTar_val) {
                 // No mismatch
             } else {
-                // Overlapping, handle error
+                // Overlapping
             }
             stringbuilder << startinRef_val << "," << endinRef_val << "\n";
         }
-        if (endinTar_val < (target.length() - 1)) { // ORGC::target
-            // Bounds check for substr
+        if (endinTar_val < (target.length() - 1)) { 
             if (endinTar_val + 1 < target.length()) {
                 stringbuilder
-                        << target.substr(endinTar_val + 1, (target.length()) - (endinTar_val + 1)); // ORGC::target
+                        << target.substr(endinTar_val + 1, (target.length()) - (endinTar_val + 1)); 
             }
         }
-        write(fileName, stringbuilder.str(), true); // ORGC::write
+        write(fileName, stringbuilder.str(), true); 
     }
 
     static std::vector<Position>
-    format_matches_N(const std::string &sequence) {  //to avoid overload ambiguity if types were closer
+    format_matches_N(const std::string &sequence) {  //to avoid overload  if types were closer
         std::vector<Position> list;
         bool successive = false;
-        int start = 0, current_end = 0;  //end
+        int start = 0, current_end = 0; 
 
         for (int i = 0; i < sequence.length(); i++) {
             if (sequence[i] == 'N' || sequence[i] == 'n') {
@@ -761,14 +732,14 @@ public:
         if (successive) {
             Position position_obj;
             position_obj.setstartinTar(start);
-            position_obj.setendinTar(current_end - 1); // Assuming current_end was length or next pos
+            position_obj.setendinTar(current_end - 1); 
             list.push_back(position_obj);
         }
         return list;
     }
 
     static void
-    write(const std::string &filename, const std::string &text_content, bool append) {  //text to text_content
+    write(const std::string &filename, const std::string &text_content, bool append) { 
         std::ofstream output;
         if (append) {
             output.open(filename, std::ios::app);
@@ -783,13 +754,8 @@ public:
         output.close();
     }
 
-// REMOVE THE FOLLOWING DUPLICATE CLASS DEFINITIONS (approx. lines 575-633 in original)
-// class newkmer { ... };
-// static std::unordered_map<int, std::vector<newkmer>> hashmap; // This was line 635
-// class Position { ... };
-
     static void
-    write(std::string filename, std::vector<Position> list_param, bool append, std::string auxiliary) {  //list
+    write(std::string filename, std::vector<Position> list_param, bool append, std::string auxiliary) {  
         std::ofstream output;
         if (append) {
             output.open(filename, std::ios::app);
@@ -805,9 +771,9 @@ public:
         int temp_end = 0;
         output << auxiliary;
 
-        for (Position position_obj: list_param) {  //position
-            int start_val = position_obj.getstartinTar();  //start
-            int end_val = position_obj.getendinTar();      //end
+        for (Position position_obj: list_param) {  
+            int start_val = position_obj.getstartinTar();  
+            int end_val = position_obj.getendinTar();     
             text_stream << (start_val - temp_end) << " " << (end_val - start_val) << " ";
             temp_end = end_val;
         }
@@ -817,8 +783,6 @@ public:
         output.close();
     }
 
-// REMOVE THE FOLLOWING DUPLICATE write METHOD (approx. lines 660-673 in original)
-// static void write(std::string filename, std::string content, bool append) { ... }
 
     static void postprocess(std::string filename, std::string final_file) {
         std::ifstream input(filename);
@@ -828,16 +792,16 @@ public:
 
         std::string line;
         std::ostringstream stringbuilder;
-        std::vector<int> num_list;  //list to num_list
+        std::vector<int> num_list;  
 
         while (std::getline(input, line)) {
             if (line.find(",") != std::string::npos) {
                 size_t comma_pos = line.find(",");
                 int begin = std::stoi(line.substr(0, comma_pos));
-                int end_val = std::stoi(line.substr(comma_pos + 1));  //end
+                int end_val = std::stoi(line.substr(comma_pos + 1)); 
 
                 if (num_list.size() > 0) {
-                    int prevEnd = num_list.back(); // Use back() for last element
+                    int prevEnd = num_list.back();
                     if (begin != prevEnd + 1) {
                         stringbuilder << num_list[0] << "," << num_list.back() << "\n";
                         num_list.clear();
@@ -846,28 +810,26 @@ public:
                 num_list.push_back(begin);
                 num_list.push_back(end_val);
             } else if (line.length() > 0) {
-                // Original code had a try-catch for an out_of_range exception from list[0] or list[list.size()-1]
-                // This implies num_list could be empty here.
-                if (!num_list.empty()) { // Check if num_list is not empty
+
+                if (!num_list.empty()) { 
                     stringbuilder << num_list[0] << "," << num_list.back() << "\n";
                 }
-                // The original code had a condition `if (line.find("^") == std::string::npos)`
-                // This check is maintained.
+
                 if (line.find("^") == std::string::npos) {
                     stringbuilder << line << "\n";
                 }
                 num_list.clear();
             }
         }
-        if (num_list.size() > 0) { // Check if num_list is not empty
+        if (num_list.size() > 0) { 
             stringbuilder << num_list[0] << "," << num_list.back() << "\n";
         }
         input.close();
 
         std::istringstream inputStream(stringbuilder.str());
-        stringbuilder.str(""); // Clear stringbuilder
-        stringbuilder.clear(); // Clear error flags
-        num_list.clear();      // Clear num_list again
+        stringbuilder.str("");
+        stringbuilder.clear(); 
+        num_list.clear();      
         std::vector<std::string> stringList;
 
         while (std::getline(inputStream, line)) {
@@ -876,23 +838,18 @@ public:
 
         int prev = 0;
         bool successive = false;
-        for (size_t i = 0; i < stringList.size(); i++) { // Use size_t for loop counter
+        for (size_t i = 0; i < stringList.size(); i++) { 
             std::string str = stringList[i];
 
             if (str.find(",") != std::string::npos) {
                 size_t comma_pos = str.find(",");
                 int begin = std::stoi(str.substr(0, comma_pos));
-                int end_val = std::stoi(str.substr(comma_pos + 1));  //end
+                int end_val = std::stoi(str.substr(comma_pos + 1)); 
                 if (!successive) {
                     num_list.push_back(begin);
                     num_list.push_back(end_val - begin);
                     prev = end_val;
-                    // stringbuilder << num_list[0] << "," << num_list.back() << "\n"; // Original logic was complex here
-                    // The original code printed list[0],list[list.size()-1] which would be begin, (end-begin)
-                    // This seems to be transforming coordinates. Let's stick to the original output format if it was intended.
-                    // The original code here was: stringbuilder << list[0] << "," << list[list.size() - 1] << "\n";
-                    // If list contains [begin, end-begin], then list.size()-1 is index 1.
-                    // So it prints begin, (end-begin).
+     
                     if (!num_list.empty()) stringbuilder << num_list[0] << "," << num_list.back() << "\n";
 
                     successive = true;
@@ -900,27 +857,24 @@ public:
                     num_list.push_back(begin - prev);
                     num_list.push_back(end_val - begin);
                     prev = end_val;
-                    // Same logic for printing as above
                     if (!num_list.empty()) stringbuilder << num_list[0] << "," << num_list.back() << "\n";
                 }
-                num_list.clear(); // Cleared after each processed coordinate line
+                num_list.clear();
             } else if (str.length() > 0) {
                 stringbuilder << str << "\n";
             }
         }
 
-        if (!num_list.empty()) { // Check if num_list is not empty
+        if (!num_list.empty()) {
             stringbuilder << num_list[0] << "," << num_list.back() << "\n";
         }
 
-        write(final_file, stringbuilder.str(), true); // ORGC::write
+        write(final_file, stringbuilder.str(), true);
     }
 
-    // 7zip
     static void use7zip(std::string filename) {
         struct stat buffer;
         if (stat(filename.c_str(), &buffer) != 0) {
-            // File does not exist or error, perhaps log or handle
             std::cerr << "Warning: File " << filename << " not found for 7zip." << std::endl;
             return;
         }
@@ -931,20 +885,14 @@ public:
             if (result != 0) {
                 std::cerr << "Warning: 7zip command failed with result " << result << std::endl;
             }
-            // (void)result; // suppress unused variable warning if not checking result
-        } catch (const std::exception &e) { // Catch standard exceptions
+        } catch (const std::exception &e) { 
             std::cerr << "Exception in use7zip: " << e.what() << std::endl;
         }
     }
 
-// REMOVE THE ENTIRE BLOCK OF DUPLICATE/STUB HELPER METHODS HERE
-// (approx. lines 827-915 in original file)
-// This includes LreadSeq, lowercase_position, Lmatch, format_matches (all overloads),
-// GreadrefSeq, GreadtarSeq, Gmatch, getCPUTime.
 
-}; // End of ORGC class
+}; 
 
-// Static member definitions must be outside the class
 std::vector<int> ORGC::next_kmer;
 std::vector<int> ORGC::kmer_location;
 std::string ORGC::reference = "";
@@ -962,16 +910,11 @@ int ORGC::sor = 0;
 int ORGC::eor = 0;
 int ORGC::length = 0;
 int ORGC::mismatch = 0;
-int ORGC::endref = ORGC::sub_length - 1; // ORGC::sub_length should be initialized before this
-// int ORGC::next_kmer[ORGC::maxchar]; // Definition for arrays is tricky, often done in .cpp if header/source split
-// int ORGC::kmer_location[ORGC::maxseq];
-// For single file, these are fine, but ensure maxchar/maxseq are usable at this point.
-// They are const int, so it's okay.
+int ORGC::endref = ORGC::sub_length - 1; 
 bool ORGC::local = true;
 std::unordered_map<int, std::vector<newkmer>> ORGC::hashmap;
 
 
-// main function should be global, not a static member of ORGC
 int main(int argc, char *argv[]) {
 
     if (argc != 4) {
@@ -979,8 +922,8 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    std::string reference_genome_path;  //to avoid conflict with ORGC::reference
-    std::string target_genome_path;     //to avoid conflict with ORGC::target
+    std::string reference_genome_path; 
+    std::string target_genome_path;  
     std::string output_dir = argv[3];
     struct stat st = {0};
     if (stat(output_dir.c_str(), &st) == -1) {
@@ -996,8 +939,8 @@ int main(int argc, char *argv[]) {
             return 1;
         }
     }
-    std::string mkdir_cmd = "mkdir \"" + final_folder + "\"";  // Enclose path in quotes for spaces
-    std::system(mkdir_cmd.c_str()); // Use c_str()
+    std::string mkdir_cmd = "mkdir \"" + final_folder + "\""; 
+    std::system(mkdir_cmd.c_str()); 
     std::string final_file_path;
     int controuble;
     bool is_con;
@@ -1168,7 +1111,7 @@ int main(int argc, char *argv[]) {
                     }
                     is_con = true;
 
-                    // ORGC::text += ORGC::target + "\n"; // ORGC::target was the segment, use current_tar_segment
+                     += ORGC::target + "\n";  was the segment, use current_tar_segment
                     ORGC::text += current_tar_segment + "\n";
                     ORGC::write(tempfile, ORGC::text, true);
                     ORGC::sot += ORGC::sub_length;
@@ -1263,13 +1206,13 @@ int main(int argc, char *argv[]) {
                     }
 
                 } else if (difference < ORGC::sub_length) {
-                    ORGC::eot = target_seq_content.length(); //exclusive end
+                    ORGC::eot = target_seq_content.length();
                 }
 
                 int difference_ref = reference_seq_content.length() - ORGC::sor;
 
                 if (difference_ref < ORGC::sub_length) {
-                    ORGC::eor = reference_seq_content.length(); //exclusive end
+                    ORGC::eor = reference_seq_content.length();
                 }
                 if (difference_ref <= ORGC::kmer_length) {
                     if (ORGC::sot >= target_seq_content.size()) {

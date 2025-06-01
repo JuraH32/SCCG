@@ -15,7 +15,6 @@
 
 class SCCGD {
 public:
-    // Position class equivalent to Java's inner class
     class Position {
     public:
         int startinRef;
@@ -24,14 +23,12 @@ public:
         Position() : startinRef(0), endinRef(0) {}
     };
 
-    // Static variables equivalent to Java's static fields
     static std::vector<Position> L_list;
     static std::vector<Position> N_list;
     static std::string meta_data;
     static int length;
     static int line_length;
 
-    // Equivalent to readSeq method
     static std::string readSeq(const std::string& sequenceFileName) {
         std::ifstream file(sequenceFileName);
         if (!file.is_open()) {
@@ -41,10 +38,8 @@ public:
         std::string line;
         std::stringstream stringbuilder;
         
-        // Read first line (skip it like in Java)
         std::getline(file, line);
         
-        // Read remaining lines
         while (std::getline(file, line)) {
             stringbuilder << line;
         }
@@ -53,7 +48,6 @@ public:
         return stringbuilder.str();
     }
 
-    // Equivalent to readrefSeq method
     static std::string readrefSeq(const std::string& sequenceFileName) {
         std::ifstream file(sequenceFileName);
         if (!file.is_open()) {
@@ -66,10 +60,8 @@ public:
         
         std::stringstream stringbuilder;
         
-        // Read first line (skip it like in Java)
         std::getline(file, line);
         
-        // Read remaining lines
         while (std::getline(file, line)) {
             line_length = line.length();
             for (int i = 0; i < line_length; i++) {
@@ -87,24 +79,20 @@ public:
         return stringbuilder.str();
     }
 
-    // Equivalent to use7zip method
     static void use7zip(const std::string& filename, const std::string& Dfilename) {
-        // Check if file exists
         struct stat buffer;
         if (stat(filename.c_str(), &buffer) != 0) {
-            return; // File doesn't exist
+            return; 
         }
         
         std::string exec = "./7za e " + filename + " -o" + Dfilename + " -aos";
         try {
             int result = std::system(exec.c_str());
-            // Wait is implicit in system() call
         } catch (const std::exception& e) {
             std::cerr << "Exception: " << e.what() << std::endl;
         }
     }
 
-    // Equivalent to reconstruct method
     static std::string reconstruct(const std::string& inFileName, const std::string& reference) {
         std::ifstream file(inFileName);
         if (!file.is_open()) {
@@ -119,7 +107,6 @@ public:
         while (std::getline(file, line)) {
             if (index == 4) {
                 if (line.find(",") != std::string::npos) {
-                    // Split by comma
                     size_t comma_pos = line.find(",");
                     std::string begin_str = line.substr(0, comma_pos);
                     std::string end_str = line.substr(comma_pos + 1);
@@ -150,7 +137,6 @@ public:
         return stringbuilder.str();
     }
 
-    // Equivalent to write method
     static void write(const std::string& fileName, const std::string& text) {
         std::ofstream file(fileName);
         if (!file.is_open()) {
@@ -162,14 +148,12 @@ public:
         file.close();
     }
 
-    // Equivalent to getCpuTime method
     static long getCpuTime() {
         auto now = std::chrono::high_resolution_clock::now();
         auto duration = now.time_since_epoch();
         return std::chrono::duration_cast<std::chrono::nanoseconds>(duration).count();
     }
 
-    // Equivalent to test method
     static void test(const std::string& ref, const std::string& tar) {
         for (size_t i = 0; i < ref.length(); i++) {
             if (ref[i] != tar[i]) {
@@ -178,7 +162,6 @@ public:
         }
     }
 
-    // Helper function to split string by delimiter
     static std::vector<std::string> split(const std::string& str, const std::string& delimiter) {
         std::vector<std::string> tokens;
         size_t start = 0;
@@ -199,7 +182,6 @@ public:
         return tokens;
     }
 
-    // Helper function to check if file exists and delete it
     static void deleteFile(const std::string& filename) {
         struct stat buffer;
         if (stat(filename.c_str(), &buffer) == 0) {
@@ -207,10 +189,9 @@ public:
         }
     }
 
-    // Main method equivalent
     static int main(int argc, char* argv[]) {
         try {
-            if (argc != 4) { // argc includes program name, so 4 total for 3 arguments
+            if (argc != 4) { 
                 std::cout << "Make sure you have inputted 3 arguments." << std::endl;
                 std::exit(0);
             }
@@ -221,7 +202,6 @@ public:
             std::vector<std::string> chrs = split(in_file_7z, "/");
             std::string final_file = std::string(argv[3]) + "/" + chrs[chrs.size()-1];
             
-            // Replace .7z extension
             size_t pos = final_file.find(".7z");
             if (pos != std::string::npos) {
                 final_file = final_file.substr(0, pos) + final_file.substr(pos + 3);
@@ -250,7 +230,6 @@ public:
             L_list.clear();
             N_list.clear();
             
-            // load pre-processing data
             while (std::getline(file, line)) {
                 if (Pindex == 1) {
                     line_length = std::stoi(line);
@@ -309,10 +288,8 @@ public:
                 std::transform(reference.begin(), reference.end(), reference.begin(), ::toupper);
             }
             
-            // reconstruct target sequence
             std::string target_string = reconstruct(final_file, reference);
             
-            // complete target
             std::stringstream interim;
             int index = 0, iterator = 0;
             bool accept = false;
@@ -346,9 +323,7 @@ public:
             
             if (interim.str().length() > 0) {
                 target_string = interim.str();
-                // System.out.println("FINAL SIZE: " + target_string.length());
             } else {
-                // System.out.println("FINAL SIZE: " + target_string.length());
             }
             
             for (const Position& position : L_list) {
@@ -374,12 +349,9 @@ public:
             
             final_string = meta_data + target_builder.str() + "\n";
             
-            // test(res,tar);//debug
             
             write(final_file, final_string);
             
-            // Commented out file deletion code as in original
-            // deleteFile(in_file_name);
             
             long taskCpuTimeNano = getCpuTime() - startCpuTimeNano;
             std::cout << "Decompressed time: " << static_cast<double>(taskCpuTimeNano) / 1000000000.0 << " seconds." << std::endl;
@@ -395,14 +367,12 @@ public:
     }
 };
 
-// Static member definitions
 std::vector<SCCGD::Position> SCCGD::L_list;
 std::vector<SCCGD::Position> SCCGD::N_list;
 std::string SCCGD::meta_data;
 int SCCGD::length;
 int SCCGD::line_length;
 
-// Entry point
 int main(int argc, char* argv[]) {
     return SCCGD::main(argc, argv);
 }
