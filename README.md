@@ -1,3 +1,6 @@
-Compile by using:
-g++ main.cpp src/FastaParser.cpp src/KmerIndex.cpp src/MatchFinder.cpp src/Encoder.cpp -o main -std=c++11
+Compilation:
 
+g++ orgc.cpp -o orgc
+
+Running:
+./orgc ./genome/hg17/ ./genome/hg18/ result
