@@ -62,44 +62,10 @@ enum SequenceType {
     TARGET = 1
 };
 
-class ORGC {
+class FileUtils {
 public:
-    static std::string reference, target;
     static std::string meta_data;
-    static std::string text;
-    static int kmer_length;
-    static int sub_length, limit;
-    static double T1;
-    static int T2;
-    static int sot, eot, sor, eor; 
-    static int length, mismatch, endref;
-    static const int maxchar = 268435456; // 2^28
-    static const int maxseq = 268435456 * 2; // 2^29
-    static bool local;
-    static std::unordered_map<int, std::vector<newkmer> > hashmap;
-    static std::vector<int> next_kmer;
-    static std::vector<int> kmer_location;
-
-    ORGC() {
-        text = "";
-        hashmap = std::unordered_map<int, std::vector<newkmer> >();
-    }
-
-    static int stringHashCode(const std::string &str) {
-        int hash = 0;
-        for (char c: str) {
-            hash = 31 * hash + static_cast<int>(c);
-        }
-        return hash;
-    }
-
-    static long getCPUTime() {
-        auto now = std::chrono::high_resolution_clock::now();
-        auto duration = now.time_since_epoch();
-        auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
-        return nanoseconds.count();
-    }
-
+    static int length;
     static std::string readSeq(const std::string &sequenceFileName, ScaleType scaleType = ScaleType::LOCAL, SequenceType sequenceType = SequenceType::TARGET) {
         std::ifstream file(sequenceFileName);
         if (!file.is_open()) {
@@ -154,7 +120,7 @@ public:
         std::stringstream Llist;
         std::stringstream Nlist;
 
-        std::string meta_data_local, line;  
+        std::string meta_data_local, line;
 
         int line_length, totallength = 0, Llen = 0, Nlen = 0, last_L = 0, last_N = 0, start_L = 0,
                 start_N = 0;
@@ -248,6 +214,44 @@ public:
         out.flush();
         out.close();
         return stringbuilder.str();
+    }
+};
+
+class ORGC {
+public:
+    static std::string reference, target;
+    static std::string text;
+    static int kmer_length;
+    static int sub_length, limit;
+    static double T1;
+    static int T2;
+    static int sot, eot, sor, eor; 
+    static int mismatch, endref;
+    static const int maxchar = 268435456; // 2^28
+    static const int maxseq = 268435456 * 2; // 2^29
+    static bool local;
+    static std::unordered_map<int, std::vector<newkmer> > hashmap;
+    static std::vector<int> next_kmer;
+    static std::vector<int> kmer_location;
+
+    ORGC() {
+        text = "";
+        hashmap = std::unordered_map<int, std::vector<newkmer> >();
+    }
+
+    static int stringHashCode(const std::string &str) {
+        int hash = 0;
+        for (char c: str) {
+            hash = 31 * hash + static_cast<int>(c);
+        }
+        return hash;
+    }
+
+    static long getCPUTime() {
+        auto now = std::chrono::high_resolution_clock::now();
+        auto duration = now.time_since_epoch();
+        auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
+        return nanoseconds.count();
     }
 
     static void buildLhashtable(const std::string &read,
@@ -897,7 +901,6 @@ std::vector<int> ORGC::next_kmer;
 std::vector<int> ORGC::kmer_location;
 std::string ORGC::reference = "";
 std::string ORGC::target = "";
-std::string ORGC::meta_data = "";
 std::string ORGC::text = "";
 int ORGC::kmer_length = 21;
 int ORGC::sub_length = 30000;
@@ -908,10 +911,13 @@ int ORGC::sot = 0;
 int ORGC::eot = 0;
 int ORGC::sor = 0;
 int ORGC::eor = 0;
-int ORGC::length = 0;
 int ORGC::mismatch = 0;
 int ORGC::endref = ORGC::sub_length - 1; 
 bool ORGC::local = true;
+
+int FileUtils::length = 0;
+std::string FileUtils::meta_data = "";
+
 std::unordered_map<int, std::vector<newkmer> > ORGC::hashmap;
 
 
@@ -989,8 +995,8 @@ int main(int argc, char *argv[]) {
             std::string gtarget_path = target_genome_path;
             std::string tempfile = final_folder + "/interim.txt";
 
-            std::string reference_seq_content = ORGC::readSeq(greference_path, LOCAL, REFERENCE);
-            std::string target_seq_content = ORGC::readSeq(gtarget_path, LOCAL, TARGET);
+            std::string reference_seq_content = FileUtils::readSeq(greference_path, LOCAL, REFERENCE);
+            std::string target_seq_content = FileUtils::readSeq(gtarget_path, LOCAL, TARGET);
             if (reference_seq_content.empty()) {
                 std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
                 break;
@@ -1013,7 +1019,7 @@ int main(int argc, char *argv[]) {
                 ORGC::T2 = 0;
             }
 
-            std::string auxiliary = ORGC::meta_data + "\n" + std::to_string(ORGC::length) + "\n";
+            std::string auxiliary = FileUtils::meta_data + "\n" + std::to_string(FileUtils::length) + "\n";
 
             // std::cout << "Read sequences OK" << std::endl;
             std::vector<Position> L_list = ORGC::lowercase_position(target_seq_content);
@@ -1255,8 +1261,8 @@ int main(int argc, char *argv[]) {
             std::string gtarget_path = target_genome_path;
             std::string tempfile = final_folder + "/interim.txt";
 
-            std::string reference_seq_content_global = ORGC::readSeq(greference_path, GLOBAL, REFERENCE);
-            std::string target_seq_content_global = ORGC::GreadtarSeq(gtarget_path, final_file_path);
+            std::string reference_seq_content_global = FileUtils::readSeq(greference_path, GLOBAL, REFERENCE);
+            std::string target_seq_content_global = FileUtils::GreadtarSeq(gtarget_path, final_file_path);
             if (reference_seq_content_global.empty()) {
                 std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
                 continue;
