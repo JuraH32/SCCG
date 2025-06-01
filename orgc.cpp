@@ -76,13 +76,13 @@ public:
     static const int maxchar = 268435456; // 2^28
     static const int maxseq = 268435456 * 2; // 2^29
     static bool local;
-    static std::unordered_map<int, std::vector<newkmer>> hashmap;
+    static std::unordered_map<int, std::vector<newkmer> > hashmap;
     static std::vector<int> next_kmer;
     static std::vector<int> kmer_location;
 
     ORGC() {
         text = "";
-        hashmap = std::unordered_map<int, std::vector<newkmer>>();
+        hashmap = std::unordered_map<int, std::vector<newkmer> >();
     }
 
     static int stringHashCode(const std::string &str) {
@@ -112,10 +112,11 @@ public:
         char temp_ch;
         bool base = false;
 
+        std::getline(file, line);
+
+        // Meta data is important only from target sequence when scale is local
         if (sequenceType == SequenceType::TARGET && scaleType == ScaleType::LOCAL) {
-            std::getline(file, meta_data); 
-        } else {
-            std::getline(file, line); 
+            meta_data = line; // Store the first line as metadata
         }
 
         while (std::getline(file, line)) {
@@ -130,9 +131,8 @@ public:
             } else {
                 stringbuilder << line;
             }
-            stringbuilder << line;
             if (!base && scaleType == ScaleType::LOCAL) {
-                length = line.length();
+                length = line_length;
                 base = true;
             }
         }
@@ -251,7 +251,7 @@ public:
     }
 
     static void buildLhashtable(const std::string &read,
-                                int kmer_length_param) {   to avoid shadowing static member
+                                int kmer_length_param) {   // to avoid shadowing static member
         int current_length = read.length(), i = kmer_length_param; 
         std::string Nkmer = "";
         while (i > 0) {
@@ -266,7 +266,7 @@ public:
 
         while (i < current_length - kmer_length_param + 1) {
 
-            std::string kmer_str = read.substr(i, kmer_length_param); , renamed kmer to kmer_str
+            std::string kmer_str = read.substr(i, kmer_length_param);
             newkmer newKMer;
             newKMer.setkmerstart(i);
             newKMer.setkmer(kmer_str);
@@ -632,7 +632,7 @@ public:
             // Bounds check for substr
             if (endinTarPrev + 1 < startinTar_val) {
                 std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev +
-                                                                                             1)); , renamed mismatch
+                                                                                             1));
                 if (mismatch_str.length() > 0) {
                     text += mismatch_str + "\n"; 
                     trouble += mismatch_str.length();
@@ -680,7 +680,7 @@ public:
             int endinTarPrev = list_param[i - 1].getendinTar();
             if (endinTarPrev + 1 < startinTar_val) {
                 std::string mismatch_str = target.substr(endinTarPrev + 1, startinTar_val - (endinTarPrev +
-                                                                                             1)); , renamed mismatch
+                                                                                             1));
                 if (mismatch_str.length() > 0) {
                     stringbuilder << mismatch_str << "\n";
                 }
@@ -912,7 +912,7 @@ int ORGC::length = 0;
 int ORGC::mismatch = 0;
 int ORGC::endref = ORGC::sub_length - 1; 
 bool ORGC::local = true;
-std::unordered_map<int, std::vector<newkmer>> ORGC::hashmap;
+std::unordered_map<int, std::vector<newkmer> > ORGC::hashmap;
 
 
 int main(int argc, char *argv[]) {
@@ -1111,7 +1111,6 @@ int main(int argc, char *argv[]) {
                     }
                     is_con = true;
 
-                     += ORGC::target + "\n";  was the segment, use current_tar_segment
                     ORGC::text += current_tar_segment + "\n";
                     ORGC::write(tempfile, ORGC::text, true);
                     ORGC::sot += ORGC::sub_length;
