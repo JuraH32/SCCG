@@ -62,7 +62,7 @@ enum SequenceType {
     TARGET = 1
 };
 
-class KmerProcessor {
+class SequenceProcessor {
 public:
     static std::unordered_map<int, std::vector<newkmer> > hashmap;
     static std::vector<int> next_kmer;
@@ -139,11 +139,291 @@ public:
             kmer_location[static_cast<int>(key)] = i;
         }
     }
+
+    static std::vector<Position> lowercase_position(const std::string &sequence) {
+        std::vector<Position> list;
+        bool successive = false;
+        int start = 0, current_end = 0;
+
+        for (int i = 0; i < sequence.length(); i++) {
+            if (std::islower(sequence[i])) {
+                if (successive) {
+                    current_end += 1;
+                } else {
+                    start = i;
+                    current_end += 1;
+                    successive = true;
+                }
+            } else {
+                if (successive) {
+                    Position position;
+                    position.setstartinTar(start);
+                    position.setendinTar(current_end - 1);
+                    list.push_back(position);
+                }
+                successive = false;
+                start = 0;
+                current_end = i + 1;
+            }
+        }
+
+        if (successive) {
+            Position position;
+            position.setstartinTar(start);
+            position.setendinTar(current_end);
+            list.push_back(position);
+        }
+        return list;
+    }
 };
 
-std::unordered_map<int, std::vector<newkmer> > KmerProcessor::hashmap;
-std::vector<int> KmerProcessor::next_kmer;
-std::vector<int> KmerProcessor::kmer_location;
+std::unordered_map<int, std::vector<newkmer> > SequenceProcessor::hashmap;
+std::vector<int> SequenceProcessor::next_kmer;
+std::vector<int> SequenceProcessor::kmer_location;
+
+class Matcher {
+public:
+    static std::vector<Position>
+    Lmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) {
+        std::vector<Position> list;
+        int index = 0, startIndex;
+        int increment, most_incre, key_val;
+        int kmerstart_val, endinRef_val, endinTar_val, Refendindex, Tarendindex;
+        std::string kmer_str;
+
+        SequenceProcessor::buildLhashtable(ref_seq, kmer_len);
+
+        while (true) {
+            increment = 0;
+            most_incre = 0;
+            if (index + kmer_len > tar_seq.length()) {
+                break;
+            }
+            kmer_str = tar_seq.substr(index, kmer_len);
+            key_val = SequenceProcessor::stringHashCode(kmer_str);
+
+            if (SequenceProcessor::hashmap.find(key_val) == SequenceProcessor::hashmap.end()) {
+                startIndex = std::numeric_limits<int>::max();
+                index = index + 1;
+                if (index + kmer_len > tar_seq.length()) {
+                    break;
+                }
+                continue;
+            }
+
+            std::vector<newkmer> &klist = SequenceProcessor::hashmap[key_val];
+            startIndex = std::numeric_limits<int>::max();
+            most_incre = 0;
+            for (const newkmer &newKMer: klist) {
+                if (newKMer.getkmer() == kmer_str) {
+                    kmerstart_val = newKMer.getkmerstart();
+                    endinRef_val = kmerstart_val + kmer_len - 1;
+                    endinTar_val = index + kmer_len - 1;
+                    Refendindex = ref_seq.length() - 1;
+                    Tarendindex = tar_seq.length() - 1;
+                    increment = get_incre(ref_seq, tar_seq, endinRef_val, endinTar_val, Refendindex,
+                                          Tarendindex);
+
+                    if (klist.size() > 1) {
+                        if (increment == most_incre) {
+                            if (list.size() >
+                                1) { // Should be list.size() > 0 or !list.empty()
+                                int lastEIR = list.back().getendinRef();
+                                if (std::abs(kmerstart_val - lastEIR) <
+                                    std::abs(startIndex - lastEIR))
+                                    startIndex = kmerstart_val;
+                            } else if (list.empty()) {
+                                startIndex = kmerstart_val;
+                            }
+                        } else if (increment > most_incre) {
+                            most_incre = increment;
+                            startIndex = kmerstart_val;
+                        }
+                    } else {
+                        most_incre = increment;
+                        startIndex = kmerstart_val;
+                        break;
+                    }
+                }
+            }
+
+            if (startIndex == std::numeric_limits<int>::max()) {
+                index = index + 1;
+                if (index + kmer_len > tar_seq.length()) {
+                    break;
+                }
+                continue;
+            }
+
+            Position position_obj;
+            position_obj.setstartinTar(index);
+            position_obj.setendinTar(index + kmer_len + most_incre - 1);
+            position_obj.setstartinRef(startIndex);
+            position_obj.setendinRef(startIndex + kmer_len + most_incre - 1);
+            list.push_back(position_obj);
+            index = index + kmer_len + most_incre +
+                    1;
+            if (index + kmer_len > tar_seq.length()) {
+                break;
+            }
+        }
+        return list;
+    }
+
+    static std::vector<Position>
+    Gmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len, int limit_param) {
+        std::vector<Position> list;
+        int index = 0, startIndex, lastEIR = 0;
+        std::string kmer_str;
+
+        SequenceProcessor::buildGhashtable(ref_seq, kmer_len);
+
+        while (true) {
+            int increment = 0, most_incre = 0;
+            if (index + kmer_len > tar_seq.length()) {
+                break;
+            }
+            kmer_str = tar_seq.substr(index, kmer_len);
+            int key_val = std::abs(SequenceProcessor::stringHashCode(kmer_str));
+
+            if (key_val == -2147483648) { // Integer.MIN_VALUE
+                key_val = 0;
+            }
+            while (key_val > SequenceProcessor::maxseq - 1) {
+                key_val = key_val / 2;
+            }
+
+            if (SequenceProcessor::kmer_location[key_val] == -1) {
+                startIndex = std::numeric_limits<int>::max();
+                index = index + 1;
+                if (index + kmer_len > tar_seq.length()) {
+                    break;
+                }
+                continue;
+            }
+
+            startIndex = std::numeric_limits<int>::max();
+            most_incre = 0;
+            bool match_found = false;
+
+            for (int k = SequenceProcessor::kmer_location[key_val]; k != -1; k = SequenceProcessor::next_kmer[k]) {
+                increment = 0;
+                if (k + kmer_len > ref_seq.length()) continue;
+                std::string Rkmer = ref_seq.substr(k, kmer_len);
+                if (kmer_str != Rkmer) {
+                    continue;
+                }
+                try {
+                    if (!list.empty()) {
+                        lastEIR = list.back().getendinRef();
+                    } else {
+                        lastEIR = 0;
+                    }
+                } catch (...) {
+                    lastEIR = 0;
+                }
+                if (std::abs(k - lastEIR) > limit_param) { // Use limit_param
+                    continue;
+                }
+
+                match_found = true;
+                int ref_idx = k + kmer_len;
+                int tar_idx = index + kmer_len;
+                while (ref_idx < ref_seq.length() && tar_idx < tar_seq.length()
+                       && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
+                    ref_idx++;
+                    tar_idx++;
+                    increment++;
+                }
+                if (increment == most_incre) {
+                    if (!list.empty()) {
+                        if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR))
+                            startIndex = k;
+                    } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
+                        startIndex = k;
+                    }
+                } else if (increment > most_incre) {
+                    most_incre = increment;
+                    startIndex = k;
+                }
+            }
+            if (!match_found) {
+                for (int k = SequenceProcessor::kmer_location[key_val]; k != -1; k = SequenceProcessor::next_kmer[k]) {
+                    increment = 0;
+                    if (k + kmer_len > ref_seq.length()) continue;
+                    std::string Rkmer = ref_seq.substr(k, kmer_len);
+                    if (kmer_str != Rkmer) {
+                        continue;
+                    }
+
+                    int ref_idx = k + kmer_len;
+                    int tar_idx = index + kmer_len;
+
+                    while (ref_idx < ref_seq.length() && tar_idx < tar_seq.length()
+                           && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
+                        ref_idx++;
+                        tar_idx++;
+                        increment++;
+                    }
+                    if (increment == most_incre) {
+                        if (!list.empty()) {
+                            if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR))
+                                startIndex = k;
+                        } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
+                            startIndex = k;
+                        }
+                    } else if (increment > most_incre) {
+                        most_incre = increment;
+                        startIndex = k;
+                    }
+                }
+            }
+
+            if (startIndex == std::numeric_limits<int>::max()) {
+                index = index + 1;
+                if (index + kmer_len > tar_seq.length()) {
+                    break;
+                }
+                continue;
+            }
+
+            Position position_obj;
+            position_obj.setstartinTar(index);
+            position_obj.setendinTar(index + kmer_len + most_incre - 1);
+            position_obj.setstartinRef(startIndex);
+            position_obj.setendinRef(startIndex + kmer_len + most_incre - 1);
+            list.push_back(position_obj);
+            index = index + kmer_len + most_incre + 1;
+            if (index + kmer_len > tar_seq.length()) {
+                break;
+            }
+        }
+        return list;
+    }
+
+private:
+    static int get_incre(const std::string& reference_seq, const std::string& target_seq,
+                         int endinRef_param, int endinTar_param, int Refendindex, int Tarendindex) {
+        int position = 0;
+        int endIndex;
+
+        if (Refendindex - endinRef_param <= Tarendindex - endinTar_param) {
+            endIndex = Refendindex - endinRef_param + 1;
+        } else {
+            endIndex = Tarendindex - endinTar_param + 1;
+        }
+
+        for (int i = 1; i < endIndex; i++) {
+            if ((endinTar_param + i) >= target_seq.length() || (endinRef_param + i) >= reference_seq.length())
+                std::cerr << "OUT OF BOUNDS: endinTar_param + i = " << (endinTar_param + i)
+                          << " target_seq.length() = " << target_seq.length()
+                          << ", endinRef_param + i = " << (endinRef_param + i)
+                          << " reference_seq.length() = " << reference_seq.length() << std::endl;
+            break;
+        }
+        return position;
+    }
+};
 
 class FileUtils {
 public:
@@ -343,6 +623,24 @@ public:
         output.flush();
         output.close();
     }
+
+    static void use7zip(std::string filename) {
+        struct stat buffer;
+        if (stat(filename.c_str(), &buffer) != 0) {
+            std::cerr << "Warning: File " << filename << " not found for 7zip." << std::endl;
+            return;
+        }
+
+        std::string exec = "./7za a " + filename + ".7z " + filename + " -m0=PPMD";
+        try {
+            int result = std::system(exec.c_str());
+            if (result != 0) {
+                std::cerr << "Warning: 7zip command failed with result " << result << std::endl;
+            }
+        } catch (const std::exception &e) {
+            std::cerr << "Exception in use7zip: " << e.what() << std::endl;
+        }
+    }
 };
 
 class ORGC {
@@ -357,9 +655,13 @@ public:
     static int mismatch, endref;
     static bool local;
 
+    // Define chrName array here
+    static const std::string chrName[];
+
+
     ORGC() {
         text = "";
-        KmerProcessor::hashmap = std::unordered_map<int, std::vector<newkmer> >();
+        SequenceProcessor::hashmap = std::unordered_map<int, std::vector<newkmer> >();
     }
 
     static long getCPUTime() {
@@ -367,288 +669,6 @@ public:
         auto duration = now.time_since_epoch();
         auto nanoseconds = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
         return nanoseconds.count();
-    }
-
-    static std::vector<Position> lowercase_position(const std::string &sequence) {
-        std::vector<Position> list;
-        bool successive = false;
-        int start = 0, current_end = 0;
-
-        for (int i = 0; i < sequence.length(); i++) {
-            if (std::islower(sequence[i])) {
-                if (successive) {
-                    current_end += 1;
-                } else {
-                    start = i;
-                    current_end += 1;
-                    successive = true;
-                }
-            } else {
-                if (successive) {
-                    Position position;
-                    position.setstartinTar(start);
-                    position.setendinTar(current_end - 1);
-                    list.push_back(position);
-                }
-                successive = false;
-                start = 0;
-                current_end = i + 1;
-            }
-        }
-
-        if (successive) {
-            Position position;
-            position.setstartinTar(start);
-            position.setendinTar(current_end);
-            list.push_back(position);
-        }
-        return list;
-    }
-
-    static int get_incre(int endinRef_param, int endinTar_param, int Refendindex, int Tarendindex) {
-
-        int position = 0;
-        int endIndex;
-
-        if (Refendindex - endinRef_param <= Tarendindex - endinTar_param) {
-            endIndex = Refendindex - endinRef_param + 1;
-        } else {
-            endIndex = Tarendindex - endinTar_param + 1;
-        }
-
-        for (int i = 1; i < endIndex; i++) {
-            if ((endinTar_param + i) >= target.size() || (endinRef_param + i) >= reference.size())
-                std::cerr << "OUT OF BOUNDS: endinTar_param + i = " << (endinTar_param + i)
-                          << " target.size() = " << target.size()
-                          << ", endinRef_param + i = " << (endinRef_param + i)
-                          << " reference.size() = " << reference.size() << std::endl;
-            break;
-            if (target[endinTar_param + i] == reference[endinRef_param + i]) {
-                position++;
-            } else {
-                break;
-            }
-        }
-
-        return position;
-    }
-
-    static std::vector<Position>
-    Lmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) {
-        std::vector<Position> list;
-        int index = 0, startIndex;
-        int increment, most_incre, key_val;
-        int kmerstart_val, endinRef_val, endinTar_val, Refendindex, Tarendindex;
-        std::string kmer_str;
-
-        KmerProcessor::buildLhashtable(ref_seq, kmer_len);
-
-        while (true) {
-            increment = 0;
-            most_incre = 0;
-            if (index + kmer_len > tar_seq.length()) {
-                break;
-            }
-            kmer_str = tar_seq.substr(index, kmer_len);
-            key_val = KmerProcessor::stringHashCode(kmer_str);
-
-            if (KmerProcessor::hashmap.find(key_val) == KmerProcessor::hashmap.end()) {
-                startIndex = std::numeric_limits<int>::max();
-                index = index + 1;
-                if (index + kmer_len > tar_seq.length()) {
-                    break;
-                }
-                continue;
-            }
-
-            std::vector<newkmer> &klist = KmerProcessor::hashmap[key_val];
-            startIndex = std::numeric_limits<int>::max();
-            most_incre = 0;
-            for (const newkmer &newKMer: klist) {
-                if (newKMer.getkmer() == kmer_str) {
-                    kmerstart_val = newKMer.getkmerstart();
-                    endinRef_val = kmerstart_val + kmer_len - 1;
-                    endinTar_val = index + kmer_len - 1;
-                    Refendindex = ref_seq.length() - 1;
-                    Tarendindex = tar_seq.length() - 1;
-                    increment = get_incre(endinRef_val, endinTar_val, Refendindex,
-                                          Tarendindex);
-
-                    if (klist.size() > 1) {
-                        if (increment == most_incre) {
-                            if (list.size() >
-                                1) {
-                                int lastEIR = list.back().getendinRef();
-                                if (std::abs(kmerstart_val - lastEIR) <
-                                    std::abs(startIndex - lastEIR))
-                                    startIndex = kmerstart_val;
-                            } else if (list.empty()) {
-                                startIndex = kmerstart_val;
-                            }
-                        } else if (increment > most_incre) {
-                            most_incre = increment;
-                            startIndex = kmerstart_val;
-                        }
-                    } else {
-                        most_incre = increment;
-                        startIndex = kmerstart_val;
-                        break;
-                    }
-                }
-            }
-
-            if (startIndex == std::numeric_limits<int>::max()) {
-                index = index + 1;
-                if (index + kmer_len > tar_seq.length()) {
-                    break;
-                }
-                continue;
-            }
-
-            Position position_obj;
-            position_obj.setstartinTar(index);
-            position_obj.setendinTar(index + kmer_len + most_incre - 1);
-            position_obj.setstartinRef(startIndex);
-            position_obj.setendinRef(startIndex + kmer_len + most_incre - 1);
-            list.push_back(position_obj);
-            index = index + kmer_len + most_incre +
-                    1;
-            if (index + kmer_len > tar_seq.length()) {
-                break;
-            }
-        }
-        return list;
-    }
-
-    static std::vector<Position>
-    Gmatch(const std::string &ref_seq, const std::string &tar_seq, int kmer_len) {
-        std::vector<Position> list;
-        int index = 0, startIndex, lastEIR = 0;
-        std::string kmer_str;
-
-        KmerProcessor::buildGhashtable(ref_seq, kmer_len);
-
-        while (true) {
-            int increment = 0, most_incre = 0;
-            if (index + kmer_len > tar_seq.length()) {
-                break;
-            }
-            kmer_str = tar_seq.substr(index, kmer_len);
-            int key_val = std::abs(KmerProcessor::stringHashCode(kmer_str));
-
-            if (key_val == -2147483648) {
-                key_val = 0;
-            }
-            while (key_val > KmerProcessor::maxseq - 1) {
-                key_val = key_val / 2;
-            }
-
-            if (KmerProcessor::kmer_location[key_val] == -1) {
-                startIndex = std::numeric_limits<int>::max();
-                index = index + 1;
-                if (index + kmer_len > tar_seq.length()) {
-                    break;
-                }
-                continue;
-            }
-
-            startIndex = std::numeric_limits<int>::max();
-            most_incre = 0;
-            bool match_found = false;
-
-            for (int k = KmerProcessor::kmer_location[key_val]; k != -1; k = KmerProcessor::next_kmer[k]) {
-                increment = 0;
-                if (k + kmer_len > ref_seq.length()) continue;
-                std::string Rkmer = ref_seq.substr(k, kmer_len);
-                if (kmer_str != Rkmer) {
-                    continue;
-                }
-                try {
-                    if (!list.empty()) {
-                        lastEIR = list.back().getendinRef();
-                    } else {
-                        lastEIR = 0;
-                    }
-                } catch (...) {
-                    lastEIR = 0;
-                }
-                if (std::abs(k - lastEIR) > limit) {
-                    continue;
-                }
-
-                match_found = true;
-                int ref_idx = k + kmer_len;
-                int tar_idx = index + kmer_len;
-                while (ref_idx < ref_seq.length() && tar_idx < tar_seq.length()
-                       && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
-                    ref_idx++;
-                    tar_idx++;
-                    increment++;
-                }
-                if (increment == most_incre) {
-                    if (!list.empty()) {
-                        if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR))
-                            startIndex = k;
-                    } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
-                        startIndex = k;
-                    }
-                } else if (increment > most_incre) {
-                    most_incre = increment;
-                    startIndex = k;
-                }
-            }
-            if (!match_found) {
-                for (int k = KmerProcessor::kmer_location[key_val]; k != -1; k = KmerProcessor::next_kmer[k]) {
-                    increment = 0;
-                    if (k + kmer_len > ref_seq.length()) continue;
-                    std::string Rkmer = ref_seq.substr(k, kmer_len);
-                    if (kmer_str != Rkmer) {
-                        continue;
-                    }
-
-                    int ref_idx = k + kmer_len;
-                    int tar_idx = index + kmer_len;
-
-                    while (ref_idx < ref_seq.length() && tar_idx < tar_seq.length()
-                           && (ref_seq.substr(ref_idx, 1) == tar_seq.substr(tar_idx, 1))) {
-                        ref_idx++;
-                        tar_idx++;
-                        increment++;
-                    }
-                    if (increment == most_incre) {
-                        if (!list.empty()) {
-                            if (std::abs(k - lastEIR) < std::abs(startIndex - lastEIR))
-                                startIndex = k;
-                        } else if (list.empty() && startIndex == std::numeric_limits<int>::max()) {
-                            startIndex = k;
-                        }
-                    } else if (increment > most_incre) {
-                        most_incre = increment;
-                        startIndex = k;
-                    }
-                }
-            }
-
-            if (startIndex == std::numeric_limits<int>::max()) {
-                index = index + 1;
-                if (index + kmer_len > tar_seq.length()) {
-                    break;
-                }
-                continue;
-            }
-
-            Position position_obj;
-            position_obj.setstartinTar(index);
-            position_obj.setendinTar(index + kmer_len + most_incre - 1);
-            position_obj.setstartinRef(startIndex);
-            position_obj.setendinRef(startIndex + kmer_len + most_incre - 1);
-            list.push_back(position_obj);
-            index = index + kmer_len + most_incre + 1;
-            if (index + kmer_len > tar_seq.length()) {
-                break;
-            }
-        }
-        return list;
     }
 
     static Position format_matches(const std::vector<Position> &list_param) {
@@ -694,12 +714,7 @@ public:
                     text += mismatch_str + "\n";
                     trouble += mismatch_str.length();
                 }
-            } else if (endinTarPrev + 1 == startinTar_val) {
-                // No mismatch
-            } else {
-                // Overlapping or invalid sequence of matches
             }
-
 
             text += std::to_string(startinRef_val + sor) + "," + std::to_string(endinRef_val + sor) +
                     "\n";
@@ -845,25 +860,374 @@ public:
         FileUtils::write(final_file, stringbuilder.str(), true);
     }
 
-    static void use7zip(std::string filename) {
+private:
+    static void process_local(const std::string& ref_genome_path, const std::string& tar_genome_path, const std::string& final_file_path, const std::string& tempfile) {
+        int controuble = 0;
+        bool is_con = false;
+
+        std::cout << tar_genome_path << " is compressing (local attempt)...\n" << std::endl;
+
         struct stat buffer;
-        if (stat(filename.c_str(), &buffer) != 0) {
-            std::cerr << "Warning: File " << filename << " not found for 7zip." << std::endl;
+        if (stat(final_file_path.c_str(), &buffer) == 0) {
+            if (std::remove(final_file_path.c_str()) != 0) {
+                std::cerr << "Warning: Failed to remove existing final file: " << final_file_path << std::endl;
+            }
+        }
+
+        std::string reference_seq_content = FileUtils::readSeq(ref_genome_path, LOCAL, REFERENCE);
+        std::string target_seq_content = FileUtils::readSeq(tar_genome_path, LOCAL, TARGET);
+        if (reference_seq_content.empty()) {
+            std::cerr << "Error: Reference sequence is empty for " << ref_genome_path << std::endl;
+            ORGC::local = false; // Mark local as failed
+            return;
+        }
+        if (target_seq_content.empty()) {
+            std::cerr << "Error: Target sequence is empty for " << tar_genome_path << std::endl;
+            ORGC::local = false; // Mark local as failed
             return;
         }
 
-        std::string exec = "./7za a " + filename + ".7z " + filename + " -m0=PPMD";
-        try {
-            int result = std::system(exec.c_str());
-            if (result != 0) {
-                std::cerr << "Warning: 7zip command failed with result " << result << std::endl;
+        int target_length_val = target_seq_content.length();
+
+        if (target_length_val < ORGC::sub_length * 5) {
+            ORGC::local = false;
+            return; // Exit if local processing is not suitable
+        } else if (target_length_val < ORGC::sub_length * 1333) {
+            ORGC::T1 = 0.1;
+            ORGC::T2 = 0;
+        }
+
+        std::string auxiliary = FileUtils::meta_data + "\n" + std::to_string(FileUtils::length) + "\n";
+        std::vector<Position> L_list = SequenceProcessor::lowercase_position(target_seq_content);
+        FileUtils::write(final_file_path, L_list, false, auxiliary);
+        FileUtils::write(final_file_path, "\n", true);
+
+        std::transform(reference_seq_content.begin(), reference_seq_content.end(), reference_seq_content.begin(),
+                       ::toupper);
+        std::transform(target_seq_content.begin(), target_seq_content.end(), target_seq_content.begin(), ::toupper);
+
+        if (stat(tempfile.c_str(), &buffer) == 0) {
+            if (std::remove(tempfile.c_str()) != 0) {
+                 std::cerr << "Warning: Failed to remove existing temp file: " << tempfile << std::endl;
             }
-        } catch (const std::exception &e) {
-            std::cerr << "Exception in use7zip: " << e.what() << std::endl;
+        }
+
+        ORGC::sot = 0;
+        ORGC::eot = ORGC::sub_length;
+        ORGC::sor = 0;
+        ORGC::eor = ORGC::sub_length;
+        Position current_position;
+
+        ORGC::text = ""; // Reset text for the first segment
+
+        while (true) {
+            ORGC utilities; // Calls constructor, resets ORGC::text and SequenceProcessor::hashmap
+            int kmerlength_val = ORGC::kmer_length;
+
+            if (ORGC::eor > reference_seq_content.length()) {
+                if (ORGC::sot >= target_seq_content.size()) {
+                    break;
+                }
+                ORGC::text = target_seq_content.substr(ORGC::sot);
+                if (ORGC::text.length() <= 0) {
+                    break;
+                } else {
+                    FileUtils::write(tempfile, ORGC::text, true);
+                    break;
+                }
+            }
+            if (ORGC::eot > target_seq_content.length()) {
+                if (ORGC::sot >= target_seq_content.size()) {
+                    break;
+                }
+                ORGC::text = target_seq_content.substr(ORGC::sot);
+                if (ORGC::text.length() <= 0) {
+                    break;
+                } else {
+                    FileUtils::write(tempfile, ORGC::text, true);
+                    break;
+                }
+            }
+            std::string current_ref_segment = reference_seq_content.substr(ORGC::sor, ORGC::eor - ORGC::sor);
+            std::string current_tar_segment = target_seq_content.substr(ORGC::sot, ORGC::eot - ORGC::sot);
+
+            ORGC::reference = current_ref_segment;
+            ORGC::target = current_tar_segment;
+
+            std::vector<Position> list_matches = Matcher::Lmatch(current_ref_segment, current_tar_segment,
+                                                              kmerlength_val);
+
+            if (list_matches.empty()) {
+                kmerlength_val = 11;
+                list_matches = Matcher::Lmatch(current_ref_segment, current_tar_segment, kmerlength_val);
+            }
+
+            if (list_matches.empty()) {
+                ORGC::mismatch++;
+
+                if (ORGC::eot >= target_seq_content.length() - 1) {
+                    if (ORGC::sot >= target_seq_content.size()) {
+                        break;
+                    }
+                    ORGC::text = target_seq_content.substr(ORGC::sot);
+                    FileUtils::write(tempfile, ORGC::text, true);
+                    break;
+                }
+
+                if (is_con) {
+                    controuble++;
+                }
+                is_con = true;
+
+                ORGC::text += current_tar_segment + "\n"; // Append to existing ORGC::text
+                FileUtils::write(tempfile, ORGC::text, true);
+                ORGC::text = ""; // Reset text for next utility call or end of segment
+                ORGC::sot += ORGC::sub_length;
+                ORGC::eot = ORGC::sot + ORGC::sub_length;
+                ORGC::eor += ORGC::sub_length;
+
+
+                int difference = target_seq_content.length() - ORGC::sot;
+
+                if (difference <= ORGC::kmer_length) {
+                    if (ORGC::sot >= target_seq_content.size()) {
+                        break;
+                    }
+                    ORGC::text = target_seq_content.substr(ORGC::sot);
+                    FileUtils::write(tempfile, ORGC::text, true);
+                    ORGC::text = "";
+                    break;
+                } else if (difference < ORGC::sub_length) {
+                    ORGC::eot = target_seq_content.length();
+                }
+
+                int difference_ref = reference_seq_content.length() - ORGC::sor;
+
+                if (difference_ref < ORGC::sub_length) {
+                    ORGC::eor = reference_seq_content.length();
+                }
+                if (ORGC::eot >= target_seq_content.length()) { // This condition might be redundant due to earlier checks
+                     // break; // Original code had a break here if eot > target_seq_content.length()
+                }
+                if (difference_ref <= ORGC::kmer_length) {
+                    if (ORGC::sot >= target_seq_content.size()) {
+                        break;
+                    }
+                    ORGC::text = target_seq_content.substr(ORGC::sot);
+                    if (ORGC::text.length() <= 0) {
+                        break;
+                    } else {
+                        if (ORGC::text.length() > (ORGC::sub_length * ORGC::T1)) {
+                            ORGC::mismatch++;
+                        }
+                        if (ORGC::mismatch > ORGC::T2) {
+                            ORGC::local = false; // Signal to switch to global
+                            // FileUtils::write(tempfile, ORGC::text, true); // Write remaining text before failing local
+                            // ORGC::text = "";
+                            return; // Exit local processing
+                        }
+                        FileUtils::write(tempfile, ORGC::text, true);
+                        ORGC::text = "";
+                        break;
+                    }
+                }
+                continue;
+            }
+
+            is_con = false;
+            if (controuble > 2)
+                ORGC::mismatch -= controuble;
+            controuble = 1;
+
+            current_position = ORGC::format_matches(list_matches); // Appends to ORGC::text
+
+            if (ORGC::mismatch > ORGC::T2) {
+                ORGC::local = false; // Signal to switch to global
+                // FileUtils::write(tempfile, ORGC::text, true); // Write current ORGC::text before failing
+                // ORGC::text = "";
+                return; // Exit local processing
+            }
+
+            ORGC::sot += current_position.getendinTar() + 1;
+            ORGC::eot = ORGC::sot + ORGC::sub_length;
+            ORGC::sor += ORGC::endref + 1; // ORGC::endref is updated by format_matches
+            ORGC::endref = 0; 
+            ORGC::eor = ORGC::sor + ORGC::sub_length;
+
+            FileUtils::write(tempfile, ORGC::text, true); // Write the formatted matches and mismatches
+            ORGC::text = ""; // Reset for the next segment or ORGC utilities call
+
+            int difference = target_seq_content.length() - ORGC::sot;
+
+            if (difference <= ORGC::kmer_length) {
+                if (ORGC::sot < target_seq_content.size()) { // Check if there's anything left
+                     ORGC::text = target_seq_content.substr(ORGC::sot);
+                     if (ORGC::text.length() > 0) {
+                        FileUtils::write(tempfile, ORGC::text, true);
+                        ORGC::text = "";
+                     }
+                }
+                break;
+            } else if (difference < ORGC::sub_length) {
+                ORGC::eot = target_seq_content.length();
+            }
+
+            int difference_ref = reference_seq_content.length() - ORGC::sor;
+
+            if (difference_ref < ORGC::sub_length) {
+                ORGC::eor = reference_seq_content.length();
+            }
+            if (difference_ref <= ORGC::kmer_length) {
+                 if (ORGC::sot < target_seq_content.size()) {
+                    ORGC::text = target_seq_content.substr(ORGC::sot);
+                    if (ORGC::text.length() > 0) {
+                        if (ORGC::text.length() > (ORGC::sub_length * ORGC::T1)) {
+                            ORGC::mismatch++;
+                        }
+                        if (ORGC::mismatch > ORGC::T2) {
+                            ORGC::local = false;
+                            // FileUtils::write(tempfile, ORGC::text, true);
+                            // ORGC::text = "";
+                            return;
+                        }
+                        FileUtils::write(tempfile, ORGC::text, true);
+                        ORGC::text = "";
+                    }
+                }
+                break;
+            }
+        } // End of while(true) segment processing loop
+
+        if (!ORGC::local) { // If loop decided local failed
+            return;
+        }
+
+        // If local processing was successful up to this point
+        ORGC::postprocess(tempfile, final_file_path);
+        if (stat(tempfile.c_str(), &buffer) == 0) {
+            if (std::remove(tempfile.c_str()) != 0) {
+                std::cerr << "Warning: Failed to remove temp file after local processing: " << tempfile << std::endl;
+            }
         }
     }
 
+    static void process_global(const std::string& ref_genome_path, const std::string& tar_genome_path, const std::string& final_file_path, const std::string& tempfile) {
+        std::cout << tar_genome_path << " is compressing (global attempt)...\n" << std::endl;
+        struct stat buffer;
+        if (stat(final_file_path.c_str(), &buffer) == 0) {
+            if (std::remove(final_file_path.c_str()) != 0) {
+                 std::cerr << "Warning: Failed to remove existing final file before global: " << final_file_path << std::endl;
+            }
+        }
+        // Ensure tempfile is clean if a failed local attempt left it.
+        if (stat(tempfile.c_str(), &buffer) == 0) {
+            if (std::remove(tempfile.c_str()) != 0) {
+                std::cerr << "Warning: Failed to remove existing temp file before global: " << tempfile << std::endl;
+            }
+        }
 
+
+        std::string reference_seq_content_global = FileUtils::readSeq(ref_genome_path, GLOBAL, REFERENCE);
+        // GreadtarSeq writes metadata and N/L lists directly to final_file_path, then returns sequence content
+        std::string target_seq_content_global = FileUtils::GreadtarSeq(tar_genome_path, final_file_path);
+
+
+        if (reference_seq_content_global.empty()) {
+            std::cerr << "Error: Reference sequence is empty for " << ref_genome_path << " (global)" << std::endl;
+            // Write empty or minimal content to final_file_path if needed, or let it be as GreadtarSeq left it
+            return;
+        }
+        if (target_seq_content_global.empty() && FileUtils::meta_data.empty()) { // Check if GreadtarSeq itself indicated an issue
+            std::cerr << "Error: Target sequence is effectively empty for " << tar_genome_path << " (global)" << std::endl;
+            // GreadtarSeq might have written headers, so final_file_path might not be empty.
+            // If target_seq_content_global is empty, no matching can be done.
+            return;
+        }
+
+
+        std::string full_reference_seq = reference_seq_content_global;
+        std::string full_target_seq = target_seq_content_global;
+
+        ORGC::reference = full_reference_seq; // For format_matches if it uses static ORGC::target
+        ORGC::target = full_target_seq;       // For format_matches
+
+        std::vector<Position> list_global_matches = Matcher::Gmatch(full_reference_seq, full_target_seq,
+                                                                 ORGC::kmer_length, ORGC::limit);
+
+        if (!full_target_seq.empty() && !list_global_matches.empty()) {
+            // format_matches for global writes to tempfile
+            ORGC::format_matches(list_global_matches, tempfile);
+            // postprocess reads tempfile and appends to final_file_path
+            ORGC::postprocess(tempfile, final_file_path);
+        } else if (full_target_seq.empty() && !list_global_matches.empty()){
+             std::cerr << "Warning: Global matches found but target sequence content for matching was empty for " << tar_genome_path << std::endl;
+        } else if (!full_target_seq.empty() && list_global_matches.empty()){
+             std::cout << "Info: No global matches found for " << tar_genome_path << ". Target content might be written as is if GreadtarSeq handled it." << std::endl;
+             // If GreadtarSeq wrote the sequence and there are no matches, postprocess might not be needed or might write an empty match list.
+             // The current format_matches/postprocess path for global expects matches.
+             // If no matches, GreadtarSeq already wrote N/L lists and metadata. The sequence itself is not written by GreadtarSeq.
+             // If target is not empty but no matches, the final file will contain N/L lists and metadata, but no sequence data or match data from postprocess.
+             // This seems to be the implicit behavior.
+        }
+
+
+        if (stat(tempfile.c_str(), &buffer) == 0) {
+             if (std::remove(tempfile.c_str()) != 0) {
+                 std::cerr << "Warning: Failed to remove temp file after global processing: " << tempfile << std::endl;
+             }
+        }
+    }
+
+public:
+    static void process_genome(const std::string& ref_base_path, const std::string& tar_base_path, const std::string& output_dir_path) {
+        std::string final_folder = output_dir_path + "/result";
+        std::string misjuggements_path = final_folder + "/misjuggements.txt";
+
+        std::ofstream misjuggements_file_clear(misjuggements_path, std::ios::out);
+        if (!misjuggements_file_clear.is_open()) {
+            std::cerr << "Could not open misjuggements.txt for clearing!" << std::endl;
+        }
+        misjuggements_file_clear.close();
+
+        for (int i = 0; i < 24; i++) {
+            ORGC::kmer_length = 21; // Reset default kmer_length for each chromosome
+            ORGC::local = true;     // Assume local processing first
+            ORGC::endref = ORGC::sub_length - 1; // Reset endref
+            ORGC::mismatch = 0;     // Reset mismatch count for the chromosome
+            // Reset T1, T2 to defaults, process_local will adjust if needed
+            ORGC::T1 = 0.5;
+            ORGC::T2 = 4;
+
+
+            std::string current_chr_name = ORGC::chrName[i];
+            std::string reference_genome_path = ref_base_path + "/" + current_chr_name;
+            std::string target_genome_path = tar_base_path + "/" + current_chr_name;
+            std::string final_file_path = final_folder + "/" + current_chr_name;
+            std::string tempfile = final_folder + "/interim.txt"; // Common temp file name
+
+            process_local(reference_genome_path, target_genome_path, final_file_path, tempfile);
+
+            if (!ORGC::local) { // If local processing failed or decided it's not suitable
+                process_global(reference_genome_path, target_genome_path, final_file_path, tempfile);
+            }
+
+            std::ofstream misjuggements_file(misjuggements_path, std::ios::app);
+            if (!misjuggements_file.is_open()) {
+                std::cerr << "Could not open misjuggements.txt for writing for " << current_chr_name << std::endl;
+            } else {
+                misjuggements_file << current_chr_name << ": " << ORGC::mismatch << std::endl;
+                misjuggements_file.close();
+            }
+        }
+    }
+    
+};
+
+const std::string ORGC::chrName[] = {
+        "chr1.fa", "chr2.fa", "chr3.fa", "chr4.fa", "chr5.fa", "chr6.fa", "chr7.fa", "chr8.fa", "chr9.fa",
+        "chr10.fa", "chr11.fa", "chr12.fa", "chr13.fa", "chr14.fa", "chr15.fa", "chr16.fa",
+        "chr17.fa", "chr18.fa", "chr19.fa", "chr20.fa",
+        "chr21.fa", "chr22.fa", "chrX.fa", "chrY.fa"
 };
 
 std::string ORGC::reference = "";
@@ -892,9 +1256,10 @@ int main(int argc, char *argv[]) {
         return 0;
     }
 
-    std::string reference_genome_path;
-    std::string target_genome_path;
+    std::string reference_base_path = argv[1];
+    std::string target_base_path = argv[2];
     std::string output_dir = argv[3];
+
     struct stat st = {0};
     if (stat(output_dir.c_str(), &st) == -1) {
         if (mkdir(output_dir.c_str(), 0777) != 0) {
@@ -904,371 +1269,24 @@ int main(int argc, char *argv[]) {
     }
     std::string final_folder = output_dir + "/result";
     if (stat(final_folder.c_str(), &st) == -1) {
-        if (mkdir(final_folder.c_str(), 0777) != 0) {
+        if (mkdir(final_folder.c_str(), 0777) != 0) { // Changed from final_folder.c_str() to output_dir for the first mkdir
             std::cerr << "Failed to create result subdirectory: " << final_folder << std::endl;
             return 1;
         }
     }
-    std::string mkdir_cmd = "mkdir \"" + final_folder + "\"";
-    std::system(mkdir_cmd.c_str());
-    std::string final_file_path;
-    int controuble;
-    bool is_con;
-    std::string misjuggements_path = final_folder + "/misjuggements.txt";
 
-    std::string chrName[] = {
-            "chr1.fa", "chr2.fa", "chr3.fa", "chr4.fa", "chr5.fa", "chr6.fa", "chr7.fa", "chr8.fa", "chr9.fa",
-            "chr10.fa", "chr11.fa", "chr12.fa", "chr13.fa", "chr14.fa", "chr15.fa", "chr16.fa",
-            "chr17.fa", "chr18.fa", "chr19.fa", "chr20.fa",
-            "chr21.fa", "chr22.fa", "chrX.fa", "chrY.fa"
-    };
 
     auto startDate = std::chrono::system_clock::now();
     long startCpuTimeNano = ORGC::getCPUTime();
     std::time_t start_time = std::chrono::system_clock::to_time_t(startDate);
     std::cout << "Start time: " << std::ctime(&start_time);
 
-    KmerProcessor::next_kmer.resize(KmerProcessor::maxchar, -1);
-    KmerProcessor::kmer_location.resize(KmerProcessor::maxseq, -1);
+    SequenceProcessor::next_kmer.resize(SequenceProcessor::maxchar, -1);
+    SequenceProcessor::kmer_location.resize(SequenceProcessor::maxseq, -1);
 
-    std::ofstream misjuggements_file_clear(misjuggements_path, std::ios::out);
-    misjuggements_file_clear.close();
+    ORGC::process_genome(reference_base_path, target_base_path, output_dir);
 
-    for (int i = 0; i < 24; i++) {
-        ORGC::kmer_length = 21;
-
-        controuble = 0;
-        is_con = false;
-        ORGC::local = true;
-        ORGC::endref = ORGC::sub_length - 1;
-
-        reference_genome_path = std::string(argv[1]) + "/" + chrName[i];
-        target_genome_path = std::string(argv[2]) + "/" + chrName[i];
-        final_file_path = final_folder + "/" + chrName[i];
-
-        while (ORGC::local) {
-            ORGC::mismatch = 0;
-            std::cout << target_genome_path << " is compressing...\n" << std::endl;
-
-            struct stat buffer;
-            if (stat(final_file_path.c_str(), &buffer) == 0) {
-                std::remove(final_file_path.c_str());
-            }
-
-            std::string greference_path = reference_genome_path;
-            std::string gtarget_path = target_genome_path;
-            std::string tempfile = final_folder + "/interim.txt";
-
-            std::string reference_seq_content = FileUtils::readSeq(greference_path, LOCAL, REFERENCE);
-            std::string target_seq_content = FileUtils::readSeq(gtarget_path, LOCAL, TARGET);
-            if (reference_seq_content.empty()) {
-                std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
-                break;
-            }
-            if (target_seq_content.empty()) {
-                std::cerr << "Error: Target sequence is empty for " << gtarget_path << std::endl;
-                break;
-            }
-
-            // std::cout << "Reference: " << greference_path << " length: " << reference_seq_content.size() << std::endl;
-            // std::cout << "Target: " << gtarget_path << " length: " << target_seq_content.size() << std::endl;
-
-            int target_length_val = target_seq_content.length();  //var
-
-            if (target_length_val < ORGC::sub_length * 5) {
-                ORGC::local = false;
-                break;
-            } else if (target_length_val < ORGC::sub_length * 1333) {
-                ORGC::T1 = 0.1;
-                ORGC::T2 = 0;
-            }
-
-            std::string auxiliary = FileUtils::meta_data + "\n" + std::to_string(FileUtils::length) + "\n";
-
-            // std::cout << "Read sequences OK" << std::endl;
-            std::vector<Position> L_list = ORGC::lowercase_position(target_seq_content);
-            // std::cout << "lowercase_position OK" << std::endl;
-            FileUtils::write(final_file_path, L_list, false, auxiliary);
-            // std::cout << "write 1 OK" << std::endl;
-            FileUtils::write(final_file_path, "\n", true);
-            // std::cout << "write 2 OK" << std::endl;
-
-            // std::cout << "Before std::transform upper" << std::endl;
-            std::transform(reference_seq_content.begin(), reference_seq_content.end(), reference_seq_content.begin(),
-                           ::toupper);
-            // std::cout << "After upper ref" << std::endl;
-            std::transform(target_seq_content.begin(), target_seq_content.end(), target_seq_content.begin(), ::toupper);
-            // std::cout << "After upper target" << std::endl;
-
-            if (stat(tempfile.c_str(), &buffer) == 0) {
-                std::remove(tempfile.c_str());
-            }
-
-            ORGC::sot = 0;
-            ORGC::eot = ORGC::sub_length;
-            ORGC::sor = 0;
-            ORGC::eor = ORGC::sub_length;
-            Position current_position;              //var
-
-            ORGC::text = ""; // Explicitly reset text for this local attempt if constructor doesn't run here.
-            // The ORGC utilities object below will reset it.
-
-            while (true) {
-                // std::cout << "New segment: sot=" << ORGC::sot << " eot=" << ORGC::eot << " sor=" << ORGC::sor << " eor="
-                //           << ORGC::eor << std::endl;
-                ORGC utilities; // Calls constructor, resets ORGC::text and KmerUtils::hashmap
-                int kmerlength_val = ORGC::kmer_length; // Renamed var
-
-                if (ORGC::eor > reference_seq_content.length()) {
-                    if (ORGC::sot >= target_seq_content.size()) {
-                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
-                                  << target_seq_content.size() << ")" << std::endl;
-                        break;
-                    }
-                    ORGC::text = target_seq_content.substr(ORGC::sot);
-                    if (ORGC::text.length() <= 0) {
-                        break;
-                    } else {
-                        FileUtils::write(tempfile, ORGC::text, true);
-                        break;
-                    }
-                }
-                if (ORGC::eot > target_seq_content.length()) {
-                    if (ORGC::sot >= target_seq_content.size()) {
-                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
-                                  << target_seq_content.size() << ")" << std::endl;
-                        break;
-                    }
-                    ORGC::text = target_seq_content.substr(ORGC::sot);
-                    if (ORGC::text.length() <= 0) {
-                        break;
-                    } else {
-                        FileUtils::write(tempfile, ORGC::text, true);
-                        break;
-                    }
-                }
-                std::string current_ref_segment = reference_seq_content.substr(ORGC::sor, ORGC::eor - ORGC::sor);
-                std::string current_tar_segment = target_seq_content.substr(ORGC::sot, ORGC::eot - ORGC::sot);
-
-                ORGC::reference = current_ref_segment;
-                ORGC::target = current_tar_segment;
-
-
-                std::vector<Position> list_matches = ORGC::Lmatch(current_ref_segment, current_tar_segment,
-                                                                  kmerlength_val);
-
-                if (list_matches.empty()) {
-                    kmerlength_val = 11;
-                    list_matches = ORGC::Lmatch(current_ref_segment, current_tar_segment, kmerlength_val);
-                }
-
-                if (list_matches.empty()) {
-                    ORGC::mismatch++;
-
-                    if (ORGC::eot >= target_seq_content.length() - 1) {
-                        if (ORGC::sot >= target_seq_content.size()) {
-                            std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
-                                      << target_seq_content.size() << ")" << std::endl;
-                            break;
-                        }
-                        ORGC::text = target_seq_content.substr(ORGC::sot);
-                        FileUtils::write(tempfile, ORGC::text, true);
-                        break;
-                    }
-
-                    if (is_con) {
-                        controuble++;
-                    }
-                    is_con = true;
-
-                    ORGC::text += current_tar_segment + "\n";
-                    FileUtils::write(tempfile, ORGC::text, true);
-                    ORGC::sot += ORGC::sub_length;
-                    ORGC::eot = ORGC::sot + ORGC::sub_length;
-                    ORGC::eor += ORGC::sub_length;
-
-
-                    int difference = target_seq_content.length() - ORGC::sot;
-
-                    if (difference <= ORGC::kmer_length) {
-                        if (ORGC::sot >= target_seq_content.size()) {
-                            std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
-                                      << target_seq_content.size() << ")" << std::endl;
-                            break;
-                        }
-                        ORGC::text = target_seq_content.substr(ORGC::sot);
-                        FileUtils::write(tempfile, ORGC::text, true);
-                        break;
-                    } else if (difference < ORGC::sub_length) {
-                        ORGC::eot = target_seq_content.length() -
-                                    1;
-                        ORGC::eot = target_seq_content.length(); // If eot is exclusive end for substr
-                    }
-
-                    int difference_ref = reference_seq_content.length() - ORGC::sor;
-
-                    if (difference_ref < ORGC::sub_length) {
-                        ORGC::eor = reference_seq_content.length(); //assuming exclusive
-                    }
-                    if (ORGC::eot >= target_seq_content.length()) {
-                        break;
-                    }
-                    if (difference_ref <= ORGC::kmer_length) {
-                        if (ORGC::sot >= target_seq_content.size()) {
-                            std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
-                                      << target_seq_content.size() << ")" << std::endl;
-                            break;
-                        }
-                        ORGC::text = target_seq_content.substr(ORGC::sot);
-                        if (ORGC::text.length() <= 0) {
-                            break;
-                        } else {
-                            if (ORGC::text.length() > (ORGC::sub_length * ORGC::T1)) {
-                                ORGC::mismatch++;
-                            }
-                            if (ORGC::mismatch > ORGC::T2) {
-                                ORGC::local = false;
-                                break;
-                            }
-                            FileUtils::write(tempfile, ORGC::text, true);
-                            break;
-                        }
-                    }
-                    continue;
-                }
-
-                is_con = false;
-                if (controuble > 2)
-                    ORGC::mismatch -= controuble;
-                controuble = 1;
-
-                current_position = ORGC::format_matches(list_matches);
-
-                if (ORGC::mismatch > ORGC::T2) {
-                    ORGC::local = false;
-                    break;
-                }
-
-                ORGC::sot += current_position.getendinTar() + 1;
-                ORGC::eot = ORGC::sot + ORGC::sub_length;
-                ORGC::sor += ORGC::endref + 1;
-                ORGC::endref = 0; // Reset for next segment's format_matches call. ORGC::sub_length -1 is initial.
-                ORGC::eor = ORGC::sor + ORGC::sub_length;
-
-                FileUtils::write(tempfile, ORGC::text, true);
-                ORGC::text = "";
-
-                int difference = target_seq_content.length() - ORGC::sot;
-
-                if (difference <= ORGC::kmer_length) {
-                    if (ORGC::sot >= target_seq_content.size()) {
-                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
-                                  << target_seq_content.size() << ")" << std::endl;
-                        break;
-                    }
-                    ORGC::text = target_seq_content.substr(ORGC::sot);
-                    if (ORGC::text.length() <= 0) {
-                        break;
-                    } else {
-                        FileUtils::write(tempfile, ORGC::text, true);
-                        break;
-                    }
-
-                } else if (difference < ORGC::sub_length) {
-                    ORGC::eot = target_seq_content.length();
-                }
-
-                int difference_ref = reference_seq_content.length() - ORGC::sor;
-
-                if (difference_ref < ORGC::sub_length) {
-                    ORGC::eor = reference_seq_content.length();
-                }
-                if (difference_ref <= ORGC::kmer_length) {
-                    if (ORGC::sot >= target_seq_content.size()) {
-                        std::cerr << "sot (" << ORGC::sot << ") >= target_seq_content.size() ("
-                                  << target_seq_content.size() << ")" << std::endl;
-                        break;
-                    }
-                    ORGC::text = target_seq_content.substr(ORGC::sot);
-                    if (ORGC::text.length() <= 0) {
-                        break;
-                    } else {
-                        if (ORGC::text.length() > (ORGC::sub_length * ORGC::T1)) {
-                            ORGC::mismatch++;
-                        }
-                        if (ORGC::mismatch > ORGC::T2) {
-                            ORGC::local = false;
-                            break;
-                        }
-                        FileUtils::write(tempfile, ORGC::text, true);
-                        break;
-                    }
-                }
-            }
-
-            if (!ORGC::local) {
-                break;
-            }
-
-            ORGC::postprocess(tempfile, final_file_path);
-            std::remove(tempfile.c_str());
-            break; // Exit while(ORGC::local) loop after successful local compression
-        }
-
-        if (!ORGC::local) {
-            struct stat buffer;
-            if (stat(final_file_path.c_str(), &buffer) == 0) {
-                std::remove(final_file_path.c_str());
-            }
-
-            std::string greference_path = reference_genome_path;
-            std::string gtarget_path = target_genome_path;
-            std::string tempfile = final_folder + "/interim.txt";
-
-            std::string reference_seq_content_global = FileUtils::readSeq(greference_path, GLOBAL, REFERENCE);
-            std::string target_seq_content_global = FileUtils::GreadtarSeq(gtarget_path, final_file_path);
-            if (reference_seq_content_global.empty()) {
-                std::cerr << "Error: Reference sequence is empty for " << greference_path << std::endl;
-                continue;
-            }
-            if (target_seq_content_global.empty()) {
-                std::cerr << "Error: Target sequence is empty for " << gtarget_path << std::endl;
-                continue;
-            }
-
-            if (stat(tempfile.c_str(), &buffer) == 0) {
-                std::remove(tempfile.c_str());
-            }
-
-            std::string full_reference_seq = reference_seq_content_global;
-            std::string full_target_seq = target_seq_content_global;
-
-            ORGC::reference = full_reference_seq;
-            ORGC::target = full_target_seq;
-            ORGC::target = full_target_seq;
-
-            std::vector<Position> list_global_matches = ORGC::Gmatch(full_reference_seq, full_target_seq,
-                                                                     ORGC::kmer_length);
-
-            if (!ORGC::target.empty() && !list_global_matches.empty()) {
-                ORGC::format_matches(list_global_matches, tempfile);
-                ORGC::postprocess(tempfile, final_file_path);
-            } else {
-                std::cerr << "Warning: target sequence or matches are empty for " << chrName[i] << std::endl;
-            }
-
-            std::remove(tempfile.c_str());
-        }
-        std::ofstream misjuggements_file(misjuggements_path, std::ios::app);
-        if (!misjuggements_file.is_open()) {
-            std::cerr << "Could not open misjuggements.txt for writing!" << std::endl;
-        } else {
-            misjuggements_file << chrName[i] << ": " << ORGC::mismatch << std::endl;
-        }
-        misjuggements_file.close();
-    }
-
-    ORGC::use7zip(final_folder);
+    FileUtils::use7zip(final_folder); // final_folder is output_dir + "/result"
     std::cout << "All Done" << std::endl;
     long taskCPUTimeNano = ORGC::getCPUTime() - startCpuTimeNano;
     std::cout << "Compressed time: " << (double) taskCPUTimeNano / 1000000000.0 << " seconds." << std::endl;
