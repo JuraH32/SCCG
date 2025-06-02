@@ -1,5 +1,7 @@
 # SCCG
 
+[![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
+
 ## Prepare data:
 1. Download the data zip file from: https://drive.google.com/file/d/1x5dOx_hL22pVWZHQxDl6-V-DCAzistKj/view?usp=sharing
 
