@@ -3,11 +3,10 @@
 [![MIT License](https://img.shields.io/badge/license-MIT-green.svg)](./LICENSE)
 
 ## Original Paper  
-This is a C++ implementation of the SCCG algorithm. You can find the paper here: [https://academic.oup.com/bioinformatics/article/35/12/2058/5165377], and the original Java implementation is available at: [https://github.com/jhchen5/SCCG].
+This is a C++ implementation of the SCCG algorithm. You can find the paper [here](https://academic.oup.com/bioinformatics/article/35/12/2058/5165377), and the original Java implementation is available [here](https://github.com/jhchen5/SCCG).
 
 ## Course Information  
-This project was completed as part of the *Bioinformatics* course at FER: [https://www.fer.unizg.hr/en/course/enbio1].
-
+This project was completed as part of the *Bioinformatics* course at FER, available [here](https://www.fer.unizg.hr/en/course/enbio1).
 
 ## Prepare data:
 1. Download the data zip file from: https://drive.google.com/file/d/1x5dOx_hL22pVWZHQxDl6-V-DCAzistKj/view?usp=sharing
