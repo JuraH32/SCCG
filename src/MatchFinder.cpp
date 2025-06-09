@@ -1,6 +1,7 @@
 #include "MatchFinder.h"
 #include <algorithm>
-#include <vector> // Required for std::vector
+#include <vector>
+#include <iostream>
 
 const size_t MatchFinder::DEFAULT_MIN_MATCH_LEN;
 
@@ -31,116 +32,69 @@ size_t MatchFinder::extendMatch(size_t ref_pos, size_t target_pos) {
 }
 
 std::vector<AlignmentSegment> MatchFinder::findMatches(bool global) {
-    std::vector<AlignmentSegment> segments; // Changed from std::vector<Match> matches
+    std::vector<AlignmentSegment> segments;
     size_t L = target.length();
     size_t index = 0;
-    size_t last_match_end_ref = 0;  // For global matching, tracks end in reference
+    int64_t last_match_end_ref = -1; 
 
-    while (index < L) { // Loop until end of target
-        if (index + kmer_size > L) { // Not enough characters left for a k-mer
-            if (index < L) { // Remaining characters are mismatches
-                segments.push_back(AlignmentSegment(
-                    target.substr(index, L - index),
-                    static_cast<int>(index)
-                ));
+    while (index < L) {
+        if (index + kmer_size > L) {
+            if (index < L) {
+                segments.push_back(AlignmentSegment(target.substr(index, L - index), static_cast<int>(index)));
             }
-            break; // End of target processing
+            break;
         }
 
-        size_t current_target_kmer_start = index;
-        std::string current_kmer = target.substr(current_target_kmer_start, kmer_size);
-        const std::vector<size_t>* kmer_positions_ptr = kmerIndex.findKmer(current_kmer);
-        
-        // If no k-mer match found in hash table or kmer_positions_ptr is null
-        if (!kmer_positions_ptr || kmer_positions_ptr->empty()) {
-            segments.push_back(AlignmentSegment(
-                target.substr(current_target_kmer_start, 1),
-                static_cast<int>(current_target_kmer_start)
-            ));
+        size_t tgt_kmer_start = index;
+        std::string kmer = target.substr(tgt_kmer_start, kmer_size);
+        const std::vector<size_t>* ref_kmer_positions = kmerIndex.findKmer(kmer);
+
+        if (!ref_kmer_positions || ref_kmer_positions->empty()) {
+            // No k-mer match at all
+            segments.push_back(AlignmentSegment(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start)));
             index++;
             continue;
         }
-        const std::vector<size_t>& kmer_positions = *kmer_positions_ptr;
+        
+        size_t best_ref_pos = 0, best_len = 0;
+        bool found_within_range = false;
 
-
-        size_t lmax1 = 0, lmax2 = 0;
-        size_t pn1 = 0, pn2 = 0;
-        // ln1 and ln2 will store the actual match lengths found
-        size_t best_ln1 = 0, best_ln2 = 0; 
-
-
-        // Check all matching k-mer positions
-        for (size_t ref_kmer_start_pos : kmer_positions) {
-            // Ensure ref_kmer_start_pos is valid before calling extendMatch
-            if (ref_kmer_start_pos + kmer_size > reference.length()) continue;
-
-            size_t current_match_len = extendMatch(ref_kmer_start_pos, current_target_kmer_start);
-
-            if (global && last_match_end_ref > 0) {
-                // Using ref_kmer_start_pos for distance calculation
-                int64_t distance = static_cast<int64_t>(ref_kmer_start_pos) - static_cast<int64_t>(last_match_end_ref);
-                if (std::abs(distance) <= static_cast<int64_t>(search_range)) {
-                    if (current_match_len == lmax2) { // lmax2 stores best length for global constrained
-                        if (pn2 == 0 || // if pn2 is not set yet
-                            std::abs(static_cast<int64_t>(ref_kmer_start_pos) - static_cast<int64_t>(last_match_end_ref)) <
-                            std::abs(static_cast<int64_t>(pn2) - static_cast<int64_t>(last_match_end_ref))) {
-                            pn2 = ref_kmer_start_pos;
-                            // best_ln2 = current_match_len; // lmax2 already holds this length
-                        }
-                    } else if (current_match_len > lmax2) {
-                        lmax2 = current_match_len;
-                        pn2 = ref_kmer_start_pos;
-                        // best_ln2 = current_match_len;
+        if (global && last_match_end_ref >= 0) {
+            for (size_t ref_pos : *ref_kmer_positions) {
+                if (ref_pos + kmer_size > reference.length()) continue;
+                int64_t dist = static_cast<int64_t>(ref_pos) - last_match_end_ref;
+                if (std::abs(dist) <= static_cast<int64_t>(search_range)) {
+                    size_t len = extendMatch(ref_pos, tgt_kmer_start);
+                    if (len > best_len || (len == best_len && std::abs(dist) < std::abs(static_cast<int64_t>(best_ref_pos) - last_match_end_ref))) {
+                        best_ref_pos = ref_pos;
+                        best_len = len;
+                        found_within_range = true;
                     }
                 }
             }
+        }
 
-            // General best match (lmax1)
-            if (current_match_len == lmax1) { // lmax1 stores best length overall
-                 if (pn1 == 0 || // if pn1 is not set yet
-                    (global && last_match_end_ref > 0 && std::abs(static_cast<int64_t>(ref_kmer_start_pos) - static_cast<int64_t>(last_match_end_ref)) <
-                     std::abs(static_cast<int64_t>(pn1) - static_cast<int64_t>(last_match_end_ref))) ||
-                    (!global && ref_kmer_start_pos < pn1) // Simple tie-break for non-global: smallest ref_pos
-                 ) {
-                    pn1 = ref_kmer_start_pos;
-                    // best_ln1 = current_match_len; // lmax1 already holds this length
+        if (!found_within_range) {
+            std::cout << "[DEBUG] No match within distance for k-mer at target pos " << tgt_kmer_start << "; searching all reference." << std::endl;
+            for (size_t ref_pos : *ref_kmer_positions) {
+                if (ref_pos + kmer_size > reference.length()) continue;
+                size_t len = extendMatch(ref_pos, tgt_kmer_start);
+                if (len > best_len || (len == best_len && ref_pos < best_ref_pos)) {
+                    best_ref_pos = ref_pos;
+                    best_len = len;
                 }
-            } else if (current_match_len > lmax1) {
-                lmax1 = current_match_len;
-                pn1 = ref_kmer_start_pos;
-                // best_ln1 = current_match_len;
             }
         }
-        
-        // Determine final pn and ln based on global flag and findings
-        size_t final_pn = 0;
-        size_t final_ln = 0;
 
-        if (global && pn2 != 0 && lmax2 > 0) { // Check lmax2 > 0 as well
-            final_pn = pn2;
-            final_ln = lmax2;
-        } else if (pn1 != 0 && lmax1 > 0) { // Check lmax1 > 0
-            final_pn = pn1;
-            final_ln = lmax1;
-        }
-        // If neither condition met, final_ln remains 0
-
-        if (final_ln > 0) {
-            segments.push_back(AlignmentSegment(
-                static_cast<int>(final_pn),
-                static_cast<int>(current_target_kmer_start),
-                static_cast<int>(final_ln)
-            ));
-            last_match_end_ref = final_pn + final_ln; // Update for next global search
-            index = current_target_kmer_start + final_ln; // Advance index past the match
+        if (best_len > 0) {
+            segments.push_back(AlignmentSegment(static_cast<int>(best_ref_pos), static_cast<int>(tgt_kmer_start), static_cast<int>(best_len)));
+            last_match_end_ref = best_ref_pos + best_len - 1; 
+            index = tgt_kmer_start + best_len;
         } else {
-            // No effective match found (ln is 0), treat as mismatch of one char
-            segments.push_back(AlignmentSegment(
-                target.substr(current_target_kmer_start, 1),
-                static_cast<int>(current_target_kmer_start)
-            ));
-            index = current_target_kmer_start + 1; // Advance index by 1
+            segments.push_back(AlignmentSegment(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start)));
+            index++;
         }
     }
     return segments;
 }
+

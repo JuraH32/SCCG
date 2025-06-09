@@ -7,7 +7,7 @@
 
 namespace Utils {
     int compressWith7zip(const std::string& inputFile) {
-        std::string command = "../7za a " + inputFile + ".7z " + inputFile + " m0=PPMD";
+        std::string command = "./7za a " + inputFile + ".7z " + inputFile + " m0=PPMD";
         return system(command.c_str());
     }
 
