@@ -8,7 +8,7 @@
     #include <algorithm> // For std::min, std::all_of, std::toupper, std::islower
     #include <vector>
     #include <string>
-    #include <iomanip> 
+    #include <iomanip>
     #include <filesystem>
 
     Compressor::Compressor() {
@@ -90,7 +90,7 @@
         out_match_info.is_valid_pure_match = true;
         return true;
     }
-    
+
     static bool parseMatchLine(const std::string &ln, ParsedMatchInfo &out) {
         std::istringstream iss(ln);
         std::string kw, nom;
@@ -228,7 +228,7 @@
         int start  = pos.startInTarget;
         int end    = pos.endInTarget;
         int length = end - start + 1;
-        if (length <= 0) 
+        if (length <= 0)
             continue;
 
         // Compute the gap from the exclusive end of the last segment
@@ -260,7 +260,7 @@
     buffer << "\n";
 
     if (!saveToFile(filename, buffer.str())) {
-        std::cerr << "Error: Could not save positions to file: " 
+        std::cerr << "Error: Could not save positions to file: "
                   << filename << std::endl;
     }
 }
@@ -274,7 +274,7 @@
     ) {
         std::ostringstream oss;
      std::string mismatch_buf;
-    
+
      for (const auto &segment : segments) {
          if (segment.is_match) {
              // flush any accumulated mismatches
@@ -282,7 +282,7 @@
                  oss << mismatch_buf << "\n";
                  mismatch_buf.clear();
              }
-    
+
              int R0 = ref_segment_offset + segment.region.startInReference;
              int L  = segment.region.length();
              if (L > 0) {
@@ -297,7 +297,7 @@
      if (!mismatch_buf.empty()) {
          oss << mismatch_buf << "\n";
      }
-    
+
      // write everything out in one go
      if (!oss.str().empty()) {
          saveToFile(filename, oss.str());
@@ -313,6 +313,11 @@
                             int search_range_limit,
                             double mismatch_threshold_T1, // Changed from int to double
                             int mismatch_threshold_T2) {
+
+        // Create output directory if it doesn't exist
+        if (!std::filesystem::exists(output_path)) {
+            std::filesystem::create_directories(output_path);
+        }
 
         // Load the reference sequence
         std::cout << "Loading reference sequence from: " << ref_fasta_path << std::endl;
@@ -370,8 +375,8 @@
         // Create mismatch_t_ime counter
         int mismatch_t_ime = 0;
         bool global_fallback = false;
-        int controuble = 0; 
-        bool is_con = false; 
+        int controuble = 0;
+        bool is_con = false;
 
         // Divide reference sequence into segments
         for (size_t i = 0; i < m; ++i) {
@@ -424,7 +429,7 @@
             int current_ref_segment_offset = i * segment_length;
             int current_target_segment_offset = i * segment_length;
             saveAlignmentSegmentsToFile(intermediate_file, matches, current_ref_segment_offset, current_target_segment_offset);
-            
+
 
             int unmatched_chars = 0;
             for (const auto &segment: matches) {
@@ -449,7 +454,7 @@
             if (mismatch_t_ime > mismatch_threshold_T2) {
                 std::cout << "Mismatch threshold exceeded. Triggering global fallback." << std::endl;
                 global_fallback = true;
-                break; 
+                break;
             }
         }
 
@@ -490,9 +495,12 @@
             }
             reference_sequence = n_free_reference;
 
-            std::cout << "Performing global matching." << std::endl;
+            std::cout << "Initializing global matching." << std::endl;
 
             MatchFinder global_match_finder(n_free_reference, n_free_target, kmer_size, search_range_limit);
+
+            std::cout << "Starting global matching." << std::endl;
+
             std::vector<AlignmentSegment> global_matches = global_match_finder.findMatches(true);
 
             if (global_matches.empty()) {

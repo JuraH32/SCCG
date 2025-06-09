@@ -11,9 +11,22 @@
 class KmerIndex {
 private:
     size_t k_size;
-    // The index itself: a hash map where keys are k-mers (strings)
-    // and values are vectors of starting positions (size_t) of that k-mer.
-    std::unordered_map<std::string, std::vector<size_t>> index;
+    // Pointer to the sequence being indexed. KmerIndex does not own this memory.
+    const std::string* p_sequence_ = nullptr;
+    // Stores the head of the linked list for each hash bucket. Indexed by scaled hash.
+    std::vector<int> kmer_location_heads_;
+    // Stores the next k-mer start position in a collision chain. Indexed by k-mer start position in sequence.
+    std::vector<int> next_kmer_positions_;
+
+    // A prime number for the hash table size, helps in distributing hash values.
+    static const size_t MAX_HASH_TABLE_SIZE = 10000019;
+    
+    /**
+     * @brief Hashes a k-mer string using FNV-1a algorithm
+     * @param kmer The k-mer string to hash
+     * @return A hash value for the k-mer
+     */
+    static size_t hashKmer(const std::string& kmer) ;
 
 public:
     /**
@@ -37,11 +50,11 @@ public:
     /**
      * @brief Finds all occurrences of a given k-mer in the indexed sequence.
      * @param kmer The k-mer string to search for. Its length should match k_size.
-     * @return A const pointer to a vector of starting positions (size_t) where the k-mer is found.
-     * Returns nullptr if the k-mer is not found in the index or if its length
-     * does not match k_size (though this implementation doesn't explicitly check kmer length here).
+     * @return A vector of starting positions (size_t) where the k-mer is found.
+     * Returns an empty vector if the k-mer is not found, if the index is not built,
+     * or if kmer length does not match k_size.
      */
-    const std::vector<size_t>* findKmer(const std::string& kmer) const;
+    std::vector<size_t> findKmer(const std::string& kmer) const;
 
     /**
      * @brief Gets the k-mer size used for this index.

@@ -27,6 +27,15 @@ struct AlignmentSegment {
         region.setEndInTarget(tar_start_pos + length - 1);
     }
 
+    AlignmentSegment()
+        : mismatched_sequence(""), is_match(true) {
+        // Default constructor initializes to a match with empty sequence
+        region.setStartInReference(-1);
+        region.setEndInReference(-1);
+        region.setStartInTarget(-1);
+        region.setEndInTarget(-1);
+    }
+
     // Constructor for a mismatch
     AlignmentSegment(const std::string& mismatch_str, int tar_start_pos)
         : mismatched_sequence(mismatch_str), is_match(false) {
@@ -45,7 +54,7 @@ public:
     MatchFinder(const std::string& reference, const std::string& target, 
                 size_t kmer_size, size_t search_range = 100); // search_range default was in .cpp, better in .h
     
-    std::vector<AlignmentSegment> findMatches(bool global = true);
+    std::vector<AlignmentSegment> findMatches(bool global);
 
 private:
     const std::string& reference;

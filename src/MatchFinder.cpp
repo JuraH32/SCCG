@@ -32,37 +32,39 @@ size_t MatchFinder::extendMatch(size_t ref_pos, size_t target_pos) {
 }
 
 std::vector<AlignmentSegment> MatchFinder::findMatches(bool global) {
-    std::vector<AlignmentSegment> segments;
     size_t L = target.length();
+    std::vector<AlignmentSegment> segments;
+    segments.reserve(L / 2);
     size_t index = 0;
-    int64_t last_match_end_ref = -1; 
+    int64_t last_match_end_ref = -1;
 
-    while (index < L) {
+    while (index < L - kmer_size + 1) {
         if (index + kmer_size > L) {
             if (index < L) {
-                segments.push_back(AlignmentSegment(target.substr(index, L - index), static_cast<int>(index)));
+                segments.emplace_back(target.substr(index, L - index), static_cast<int>(index));
             }
             break;
         }
 
         size_t tgt_kmer_start = index;
         std::string kmer = target.substr(tgt_kmer_start, kmer_size);
-        const std::vector<size_t>* ref_kmer_positions = kmerIndex.findKmer(kmer);
+        std::vector<size_t> ref_kmer_positions_vec = kmerIndex.findKmer(kmer);
 
-        if (!ref_kmer_positions || ref_kmer_positions->empty()) {
+        if (ref_kmer_positions_vec.empty()) {
             // No k-mer match at all
-            segments.push_back(AlignmentSegment(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start)));
+            segments.emplace_back(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start));
             index++;
             continue;
         }
-        
+
         size_t best_ref_pos = 0, best_len = 0;
         bool found_within_range = false;
 
         if (global && last_match_end_ref >= 0) {
-            for (size_t ref_pos : *ref_kmer_positions) {
+            for (size_t ref_pos : ref_kmer_positions_vec) {
                 if (ref_pos + kmer_size > reference.length()) continue;
                 int64_t dist = static_cast<int64_t>(ref_pos) - last_match_end_ref;
+
                 if (std::abs(dist) <= static_cast<int64_t>(search_range)) {
                     size_t len = extendMatch(ref_pos, tgt_kmer_start);
                     if (len > best_len || (len == best_len && std::abs(dist) < std::abs(static_cast<int64_t>(best_ref_pos) - last_match_end_ref))) {
@@ -75,8 +77,7 @@ std::vector<AlignmentSegment> MatchFinder::findMatches(bool global) {
         }
 
         if (!found_within_range) {
-            std::cout << "[DEBUG] No match within distance for k-mer at target pos " << tgt_kmer_start << "; searching all reference." << std::endl;
-            for (size_t ref_pos : *ref_kmer_positions) {
+            for (size_t ref_pos : ref_kmer_positions_vec) {
                 if (ref_pos + kmer_size > reference.length()) continue;
                 size_t len = extendMatch(ref_pos, tgt_kmer_start);
                 if (len > best_len || (len == best_len && ref_pos < best_ref_pos)) {
@@ -87,14 +88,13 @@ std::vector<AlignmentSegment> MatchFinder::findMatches(bool global) {
         }
 
         if (best_len > 0) {
-            segments.push_back(AlignmentSegment(static_cast<int>(best_ref_pos), static_cast<int>(tgt_kmer_start), static_cast<int>(best_len)));
-            last_match_end_ref = best_ref_pos + best_len - 1; 
+            segments.emplace_back(static_cast<int>(best_ref_pos), static_cast<int>(tgt_kmer_start), static_cast<int>(best_len));
+            last_match_end_ref = best_ref_pos + best_len - 1;
             index = tgt_kmer_start + best_len;
         } else {
-            segments.push_back(AlignmentSegment(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start)));
+            segments.emplace_back(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start));
             index++;
         }
     }
     return segments;
 }
-
