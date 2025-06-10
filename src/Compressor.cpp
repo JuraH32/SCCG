@@ -150,7 +150,6 @@ void Compressor::postprocess(std::string& temp_in, const std::string& final_out)
       ParsedMatchInfo pm;
       if (parseMatchLine(l, pm)) {
         long long delta = (long long)pm.ref_pos - prev_end;
-        if (delta < 0) delta = 0;            
         out << delta << "," << pm.length << "\n";
         prev_end = (long long)pm.ref_pos + pm.length - 1;
       } else {
@@ -323,6 +322,10 @@ void Compressor::compress(const std::string &ref_fasta_path,
     std::cout << "Lowercase positions in target sequence saved to file" << std::endl;
 
     for (char &c: reference_sequence) {
+        c = std::toupper(c);
+    }
+
+    for (char &c: target_sequence) {
         c = std::toupper(c);
     }
 

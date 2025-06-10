@@ -38,6 +38,8 @@ std::vector<AlignmentSegment> MatchFinder::findMatches(bool global) {
     size_t index = 0;
     int64_t last_match_end_ref = -1;
 
+    size_t last_match_end_target = -1; // Track last match end in target for global mode
+
     while (index < L - kmer_size + 1) {
         if (index + kmer_size > L) {
             if (index < L) {
@@ -52,9 +54,14 @@ std::vector<AlignmentSegment> MatchFinder::findMatches(bool global) {
 
         if (ref_kmer_positions_vec.empty()) {
             // No k-mer match at all
-            segments.emplace_back(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start));
+//            segments.emplace_back(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start));
             index++;
             continue;
+        }
+
+        if (last_match_end_target != index - 1 && last_match_end_target != -1) {
+            // Add the segment for between this and last match
+            segments.emplace_back(target.substr(last_match_end_target + 1, tgt_kmer_start - last_match_end_target - 1), static_cast<int>(last_match_end_target + 1));
         }
 
         size_t best_ref_pos = 0, best_len = 0;
@@ -89,12 +96,19 @@ std::vector<AlignmentSegment> MatchFinder::findMatches(bool global) {
 
         if (best_len > 0) {
             segments.emplace_back(static_cast<int>(best_ref_pos), static_cast<int>(tgt_kmer_start), static_cast<int>(best_len));
+            last_match_end_target = tgt_kmer_start + best_len - 1;
             last_match_end_ref = best_ref_pos + best_len - 1;
             index = tgt_kmer_start + best_len;
         } else {
             segments.emplace_back(target.substr(tgt_kmer_start, 1), static_cast<int>(tgt_kmer_start));
+            last_match_end_target = tgt_kmer_start; // Update last match end in target
             index++;
         }
+    }
+
+    if (last_match_end_target < L - 1) {
+        // Add the last segment if there are unmatched characters at the end
+        segments.emplace_back(target.substr(last_match_end_target + 1, L - last_match_end_target - 1), static_cast<int>(last_match_end_target + 1));
     }
     return segments;
 }

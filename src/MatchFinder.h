@@ -43,7 +43,7 @@ struct AlignmentSegment {
         if (!mismatch_str.empty()) {
             region.setEndInTarget(tar_start_pos + static_cast<int>(mismatch_str.length()) - 1);
         } else {
-            region.setEndInTarget(tar_start_pos -1); // Or tar_start_pos if 0-length mismatch means single point
+            region.setEndInTarget(tar_start_pos - 1); // Or tar_start_pos if 0-length mismatch means single point
         }
         // Reference positions in 'region' will remain -1 (default from Position constructor)
     }
