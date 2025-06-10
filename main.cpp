@@ -7,6 +7,7 @@
 #include <fstream>  // For file operations
 #include "src/Compressor.h" 
 #include "src/Decompressor.h"
+#include <filesystem>
 
 void printUsage(const std::string& prog) {
     std::cerr << "Usage:\n";
@@ -92,68 +93,107 @@ int main(int argc, char* argv[]) {
 
     try {
         if (mode == "encode") {
-            // argc check:
-            // basic: program_name encode ref target out [kmer_size] -> 5 or 6
-            // sccg:  program_name encode ref target out k k0 L search_L T1 T2 -> 11
-            if (argc < 5 || (argc > 6 && argc != 11)) {
-                printUsage(argv[0]);
-                return 1;
-            }
             std::string ref_path = argv[2];
             std::string target_in_path = argv[3];
             std::string output_path = argv[4];
 
-            if (argc == 5) { // Basic encode call
-                int k_val = 21; // Default k-mer size for SCCG
-                int k0_val = 8; // Default k0 for SCCG
-                size_t l_val = 30000; // Default segment length
-                int search_limit_val = 100; // Default search range limit
-                double t1_val = 0.5; // Default T1 mismatch percentage
-                int t2_val = 4; // Default T2 mismatch time
+            namespace fs = std::filesystem;
+            bool ref_is_dir = fs::is_directory(ref_path);
+            bool target_is_dir = fs::is_directory(target_in_path);
 
-                Compressor sccg_compressor; // Instance created
-                sccg_compressor.compress(ref_path, target_in_path, output_path, // Called on instance
-                                         k_val, k0_val, l_val,
-                                         search_limit_val, t1_val, t2_val); // Pass t1_val directly as double
+            auto encode_start = std::chrono::high_resolution_clock::now();
+
+            if (ref_is_dir && target_is_dir) {
+                for (const auto& entry : fs::directory_iterator(target_in_path)) {
+                    if (entry.is_regular_file()) {
+                        std::string filename = entry.path().filename().string();
+                        fs::path ref_file = fs::path(ref_path) / filename;
+                        if (fs::exists(ref_file)) {
+                            auto chr_start = std::chrono::high_resolution_clock::now();
+                            std::string target_file = entry.path().string();
+                            std::string out_file = (fs::path(output_path) / filename).string();
+                            Compressor sccg_compressor;
+                            sccg_compressor.compress(ref_file.string(), target_file, out_file,
+                                21, 8, 30000, 100, 0.5, 4);
+                            auto chr_end = std::chrono::high_resolution_clock::now();
+                            std::chrono::duration<double> chr_elapsed = chr_end - chr_start;
+                            std::cout << "Compressed: " << filename << " in " << chr_elapsed.count() << " seconds." << std::endl;
+                        } else {
+                            std::cerr << "Reference file not found for: " << filename << std::endl;
+                        }
+                    }
+                }
+            } else if (!ref_is_dir && !target_is_dir) {
+                auto chr_start = std::chrono::high_resolution_clock::now();
+                Compressor sccg_compressor;
+                sccg_compressor.compress(ref_path, target_in_path, output_path,
+                    21, 8, 30000, 100, 0.5, 4);
+                auto chr_end = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> chr_elapsed = chr_end - chr_start;
                 std::cout << "SCCG compress method finished. Intermediate output is at: " << output_path << std::endl;
+                std::cout << "Compression time: " << chr_elapsed.count() << " seconds." << std::endl;
             } else {
-                 // This case should be caught by the initial argc check
-                 printUsage(argv[0]);
-                 return 1;
+                std::cerr << "Error: Reference and target must both be files or both be directories." << std::endl;
+                return 1;
             }
+
+            auto encode_end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> encode_elapsed = encode_end - encode_start;
+            std::cout << "Total compression time: " << encode_elapsed.count() << " seconds." << std::endl;
 
         } else if (mode == "decode") {
             if (argc != 5) { // decode ref encoded_in decoded_out
                 printUsage(argv[0]);
                 return 1;
             }
-            std::string ref      = argv[2];
-            std::string archive  = argv[3];
-            std::string outFasta = argv[4];
+            std::string ref_path = argv[2];
+            std::string archive_path = argv[3];
+            std::string output_path = argv[4];
 
-            Decompressor::decompress(ref, archive, outFasta);
-        } else if (mode == "check") {
-            std::string seq1 = argv[2];
-            std::string seq2 = argv[3];
-            if (argc != 4) {
-                printUsage(argv[0]);
-                return 1;
-            }
+            namespace fs = std::filesystem;
+            bool ref_is_dir = fs::is_directory(ref_path);
+            bool archive_is_dir = fs::is_directory(archive_path);
 
-            if (areFilesEqualIgnoringNewlines(seq1, seq2)) {
-                std::cout << "The sequences in " << seq1 << " and " << seq2 << " are equal." << std::endl;
+            auto decode_start = std::chrono::high_resolution_clock::now();
+
+            if (ref_is_dir && archive_is_dir) {
+                fs::create_directories(output_path);
+                for (const auto& entry : fs::directory_iterator(archive_path)) {
+                    if (entry.is_regular_file()) {
+                        std::string filename = entry.path().filename().string();
+                        fs::path ref_file = fs::path(ref_path) / filename;
+                        if (fs::exists(ref_file)) {
+                            auto chr_start = std::chrono::high_resolution_clock::now();
+                            std::string archive_file = entry.path().string();
+                            std::string out_file = (fs::path(output_path) / filename).string();
+                            Decompressor::decompress(ref_file.string(), archive_file, out_file);
+                            auto chr_end = std::chrono::high_resolution_clock::now();
+                            std::chrono::duration<double> chr_elapsed = chr_end - chr_start;
+                            std::cout << "Decompressed: " << filename << " in " << chr_elapsed.count() << " seconds." << std::endl;
+                        } else {
+                            std::cerr << "Reference file not found for: " << filename << std::endl;
+                        }
+                    }
+                }
+            } else if (!ref_is_dir && !archive_is_dir) {
+                auto chr_start = std::chrono::high_resolution_clock::now();
+                Decompressor::decompress(ref_path, archive_path, output_path);
+                auto chr_end = std::chrono::high_resolution_clock::now();
+                std::chrono::duration<double> chr_elapsed = chr_end - chr_start;
+                std::cout << "Decompression time: " << chr_elapsed.count() << " seconds." << std::endl;
             } else {
-                std::cout << "The sequences in " << seq1 << " and " << seq2 << " are NOT equal." << std::endl;
-            }
-        } else {
-                std::cerr << "Error: Invalid mode '" << mode << "'. Use 'encode' or 'decode'." << std::endl;
-                printUsage(argv[0]);
+                std::cerr << "Error: Reference and archive must both be files or both be directories." << std::endl;
                 return 1;
+            }
+
+            auto decode_end = std::chrono::high_resolution_clock::now();
+            std::chrono::duration<double> decode_elapsed = decode_end - decode_start;
+            std::cout << "Total decompression time: " << decode_elapsed.count() << " seconds." << std::endl;
         }
-    } catch (const std::exception& e) {
-        std::cerr << "An error occurred: " << e.what() << std::endl;
+    }
+    catch (const std::exception& ex) {
+        std::cerr << "Error: " << ex.what() << std::endl;
         return 1;
     }
-
     return 0;
 }
