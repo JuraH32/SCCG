@@ -4,21 +4,30 @@
 #include <stdexcept> // For std::exception
 #include <algorithm>
 #include <sstream>  // For std::stringstream
-#include "src/Compressor.h" // Include the new Compressor header
+#include "src/Compressor.h" 
+#include "src/Decompressor.h"
 
-// Function to print usage instructions for the command-line tool.
-void printUsage(const std::string& program_name) {
-    std::cerr << "Usage:" << std::endl;
-    std::cerr << "  " << program_name << " encode <reference.fa> <target.fa> <intermediate_output.txt> <k_mer> <k0> <L_seg> <search_range_global> <T1_mismatch_perc> <T2_mismatch_time>" << std::endl;
-    std::cerr << "  " << program_name << " decode <reference.fa> <encoded_input.sccg> <decoded_output.fa>" << std::endl;
-    std::cerr << "\nArguments:" << std::endl;
-    std::cerr << "  mode: 'encode' or 'decode'." << std::endl;
-    std::cerr << "  <reference.fa>: Path to the reference genome FASTA file." << std::endl;
-    std::cerr << "  <target.fa>: Path to the target genome FASTA file (for encoding)." << std::endl;
-    std::cerr << "  <output_path>: Path to save the encoded output (for encoding) or decoded FASTA file (for decoding)." << std::endl;
-    std::cerr << "  [kmer_size]: Optional. Integer size for k-mers (default: 12, for basic encoding only)." << std::endl;
-    std::cerr << "\nExample (SCCG encode):  " << program_name << " encode ref.fa target.fa out.intermediate 12 8 1000 100 10 5" << std::endl;
-    std::cerr << "Example (decode):       " << program_name << " decode ref.fa encoded.sccg decoded.fa" << std::endl;
+void printUsage(const std::string& prog) {
+    std::cerr << "Usage:\n";
+    std::cerr << "  " << prog << " encode <reference.fa> <target.fa> <output_dir> [k_mer k0 L_seg search_range_global T1 T2]\n";
+    std::cerr << "  " << prog << " decode <reference.fa> <encoded_archive.7z> <decoded_output.fa>\n\n";
+
+    std::cerr << "Modes:\n";
+    std::cerr << "  encode   Compress <target.fa> against <reference.fa> into <output_dir>.\n";
+    std::cerr << "           Optional parameters:\n";
+    std::cerr << "             k_mer               = 21\n";
+    std::cerr << "             k0                   = 8\n";
+    std::cerr << "             L_seg                = 30000\n";
+    std::cerr << "             search_range_global  = 100\n";
+    std::cerr << "             T1 (mismatch ratio)  = 0.5\n";
+    std::cerr << "             T2 (mismatch count)  = 4\n\n";
+
+    std::cerr << "  decode   Reconstruct the FASTA from a single-chromosome .7z archive.\n\n";
+
+    std::cerr << "Examples:\n";
+    std::cerr << "  " << prog << " encode ref.fa target.fa ./out_dir\n";
+    std::cerr << "  " << prog << " encode ref.fa target.fa ./out_dir 12 8 1000 100 0.1 2\n";
+    std::cerr << "  " << prog << " decode ref.fa out_dir/chr1.7z chr1_decoded.fa\n";
 }
 
 // Helper function to create dummy FASTA sequences for testing purposes.
@@ -82,11 +91,11 @@ int main(int argc, char* argv[]) {
                 printUsage(argv[0]);
                 return 1;
             }
-            std::string ref_path = argv[2];
-            std::string encoded_in_path = argv[3];
-            std::string decoded_out_path = argv[4];
-//            run_decode(ref_path, encoded_in_path, decoded_out_path);
+            std::string ref      = argv[2];
+            std::string archive  = argv[3];
+            std::string outFasta = argv[4];
 
+            Decompressor::decompress(ref, archive, outFasta);
         } else {
             std::cerr << "Error: Invalid mode '" << mode << "'. Use 'encode' or 'decode'." << std::endl;
             printUsage(argv[0]);
