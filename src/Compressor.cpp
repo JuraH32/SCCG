@@ -9,6 +9,7 @@
 #include <vector>
 #include <string>
 #include <iomanip>
+#include <set>
 #include <filesystem>
 
 Compressor::Compressor() {
@@ -91,10 +92,9 @@ bool parsePureMatchLine(const std::string& line, ParsedMatchInfo& out_match_info
 
 static bool parseMatchLine(const std::string &ln, ParsedMatchInfo &out) {
     std::istringstream iss(ln);
-    std::string kw, nom;
+    std::string sep;
     int r, l;
-    if (!(iss >> kw >> r >> l >> nom)) return out.is_valid_pure_match = false;
-    if (kw != "MATCH" || nom != "NOMISMATCH") return out.is_valid_pure_match = false;
+    if (!(iss >> r >> sep >> l)) return out.is_valid_pure_match = false;
     out.is_valid_pure_match = true;
     out.ref_pos = r;
     out.length  = l;
@@ -114,7 +114,7 @@ void Compressor::postprocess(std::string& temp_in, const std::string& final_out)
     auto flush = [&]() {
       if (!inMerge) return;
       merged.push_back(
-        "MATCH " + std::to_string(mstart) + " " + std::to_string(mlen) + " NOMISMATCH"
+        std::to_string(mstart) + ", " + std::to_string(mlen)
       );
       inMerge = false;
     };
@@ -218,10 +218,10 @@ for (const auto &pos : positions) {
         }
     }
 
-    std::cout << "segment: [" << start << "," << end << "]"
-                << "  delta: " << delta
-                << "  length: " << length
-                << std::endl;
+//    std::cout << "segment: [" << start << "," << end << "]"
+//                << "  delta: " << delta
+//                << "  length: " << length
+//                << std::endl;
 
     buffer << delta << " " << length << " ";
 
@@ -241,8 +241,7 @@ if (!saveToFile(filename, buffer.str())) {
 void Compressor::saveAlignmentSegmentsToFile(
         const std::string &filename,
         const std::vector<AlignmentSegment> &segments,
-        int ref_segment_offset,
-        int target_segment_offset
+        int ref_segment_offset
 ) {
     std::ostringstream oss;
     std::string mismatch_buf;
@@ -257,7 +256,7 @@ void Compressor::saveAlignmentSegmentsToFile(
             int R0 = ref_segment_offset + segment.region.startInReference;
             int L  = segment.region.length();
             if (L > 0) {
-                oss << R0 << "," << L << "\n";
+                oss << R0 << ", " << L << "\n";
             }
         } else {
             mismatch_buf += segment.mismatched_sequence;
@@ -317,7 +316,7 @@ void Compressor::compress(const std::string &ref_fasta_path,
 
     std::vector<Position> lowercase_positions_T;
     lowercase_positions_T = getPositions(target_sequence, [](char c) { return std::islower(c); });
-    savePositionsToFile(intermediate_file, lowercase_positions_T, "LOWERCASE_POSITIONS: ");
+    savePositionsToFile(intermediate_file, lowercase_positions_T, "L: ");
 
     std::cout << "Lowercase positions in target sequence saved to file" << std::endl;
 
@@ -328,6 +327,25 @@ void Compressor::compress(const std::string &ref_fasta_path,
     for (char &c: target_sequence) {
         c = std::toupper(c);
     }
+
+    // Find all different letters present in the target and reference sequences
+//    std::set<char> unique_letters;
+//    for (char c : target_sequence) {
+//        if (c != 'N') {
+//            unique_letters.insert(c);
+//        }
+//    }
+//    for (char c : reference_sequence) {
+//        if (c != 'N') {
+//            unique_letters.insert(c);
+//        }
+//    }
+//
+//    // Print the unique letters found in both sequences
+//    std::cout << "Unique letters in target and reference sequences: ";
+//    for (char c : unique_letters) {
+//        std::cout << c << " ";
+//    }
 
     size_t m = (reference_sequence.length() + segment_length - 1) / segment_length; // ceiling division
     size_t n = (target_sequence.length() + segment_length - 1) / segment_length;    // ceiling division
@@ -385,7 +403,7 @@ void Compressor::compress(const std::string &ref_fasta_path,
 
         int current_ref_segment_offset = i * segment_length;
         int current_target_segment_offset = i * segment_length;
-        saveAlignmentSegmentsToFile(intermediate_file, matches, current_ref_segment_offset, current_target_segment_offset);
+        saveAlignmentSegmentsToFile(intermediate_file, matches, current_ref_segment_offset);
 
 
         int unmatched_chars = 0;
@@ -429,8 +447,8 @@ void Compressor::compress(const std::string &ref_fasta_path,
 
         std::vector<Position> n_fragments_T = getPositions(target_sequence, [](char c) { return c == 'N'; });
 
-        savePositionsToFile(intermediate_file, lowercase_positions_T, "LOWERCASE_POSITIONS: ");
-        savePositionsToFile(intermediate_file, n_fragments_T, "N_POSITIONS: ");
+        savePositionsToFile(intermediate_file, lowercase_positions_T, "L: ");
+        savePositionsToFile(intermediate_file, n_fragments_T, "N: ");
 
         // Remove 'N' characters from target sequence
         std::string n_free_target;
@@ -467,7 +485,7 @@ void Compressor::compress(const std::string &ref_fasta_path,
                 throw std::runtime_error("Failed to save raw target sequence to file: " + intermediate_file);
             }
         } else {
-            saveAlignmentSegmentsToFile(intermediate_file, global_matches, 0, 0); // Offsets are 0 for global
+            saveAlignmentSegmentsToFile(intermediate_file, global_matches, 0); // Offsets are 0 for global
         }
     }
 

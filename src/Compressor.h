@@ -35,8 +35,7 @@ private:
     void saveAlignmentSegmentsToFile(
         const std::string& filename, 
         const std::vector<AlignmentSegment>& segments,
-        int ref_segment_offset, // Added for local segment processing
-        int target_segment_offset // Added for local segment processing
+        int ref_segment_offset // Added for local segment processing
     );
     void postprocess(std::string& temp_file, const std::string& output_path);
 };
