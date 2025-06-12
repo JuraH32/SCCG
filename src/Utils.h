@@ -6,17 +6,25 @@
 #include <sstream>
 
 namespace Utils {
-    int compressWith7zip(const std::string& inputFile) {
-        std::string command = "./7za a " + inputFile + ".7z " + inputFile + " m0=PPMD";
+#ifdef __APPLE__
+    const std::string sevenZipCommand = "7zz";
+    const std::string compressionCommand = "-mm=ppmd";
+#else
+    const std::string sevenZipCommand = "./7za";
+    const std::string compressionCommand = "m0=PPMD";
+#endif
+
+    inline int compressWith7zip(const std::string& inputFile) {
+        std::string command = sevenZipCommand + " a " + inputFile + ".7z " + inputFile + " " + compressionCommand;
         return system(command.c_str());
     }
 
-    int decompressWith7zip(const std::string& inputFile, const std::string& outputDir) {
-        std::string command = "../7za x " + inputFile + " -o" + outputDir + " -aos";
-        return system(command.c_str());
+    inline int decompressWith7zip(const std::string& archivePath, const std::string& unzipDir) {
+        std::string cmd = sevenZipCommand + " e \"" + archivePath + "\" -o\"" + unzipDir + "\" -aos";
+        return system(cmd.c_str());
     }
 
-    std::vector<std::string> splitPath(const std::string& path) {
+    inline std::vector<std::string> splitPath(const std::string& path) {
         std::vector<std::string> parts;
         size_t pos = 0;
         size_t found;
@@ -32,7 +40,7 @@ namespace Utils {
         return parts;
     }
 
-    void createFileIfNotExists(const std::string& filename) {
+    inline void createFileIfNotExists(const std::string& filename) {
         std::ofstream file(filename, std::ios::app);
         if (!file) {
             std::cerr << "Error: Could not create file: " << filename << std::endl;
@@ -42,7 +50,7 @@ namespace Utils {
         file.close();
     }
 
-    void removeFileIfExists(const std::string& filename, bool create_if_not_exists = false) {
+    inline void removeFileIfExists(const std::string& filename, bool create_if_not_exists = false) {
         if (std::remove(filename.c_str()) != 0) {
             std::cerr << "Warning: Could not remove file: " << filename << std::endl;
         } else {
@@ -51,18 +59,5 @@ namespace Utils {
         if (create_if_not_exists) {
             createFileIfNotExists(filename);
         }
-    }
-
-    void savePositionsToFile(const std::string& filename, const std::vector<size_t>& positions) {
-        std::ofstream outFile(filename, std::ios::app);
-        if (!outFile.is_open()) {
-            std::cerr << "Error: Could not open file for writing: " << filename << std::endl;
-            return;
-        }
-        outFile << "LOWERCASE_POSITIONS_COUNT " << positions.size() << "\n";
-        for (size_t pos : positions) {
-            outFile << pos << "\n";
-        }
-        outFile.close();
     }
 }

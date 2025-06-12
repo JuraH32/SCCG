@@ -21,7 +21,8 @@ public:
                   size_t segment_length,
                   int search_range_limit,
                   double mismatch_threshold_T1, // Changed from int to double
-                  int mismatch_threshold_T2);
+                  int mismatch_threshold_T2,
+                  bool only_global = false);
 
 private:
     std::string meta_data;

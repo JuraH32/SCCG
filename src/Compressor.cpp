@@ -279,7 +279,8 @@ void Compressor::compress(const std::string &ref_fasta_path,
                         size_t segment_length,
                         int search_range_limit,
                         double mismatch_threshold_T1, // Changed from int to double
-                        int mismatch_threshold_T2) {
+                        int mismatch_threshold_T2,
+                        bool only_global) {
 
     if (!std::filesystem::exists(output_path)) {
         std::filesystem::create_directories(output_path);
@@ -328,109 +329,96 @@ void Compressor::compress(const std::string &ref_fasta_path,
         c = std::toupper(c);
     }
 
-    // Find all different letters present in the target and reference sequences
-//    std::set<char> unique_letters;
-//    for (char c : target_sequence) {
-//        if (c != 'N') {
-//            unique_letters.insert(c);
-//        }
-//    }
-//    for (char c : reference_sequence) {
-//        if (c != 'N') {
-//            unique_letters.insert(c);
-//        }
-//    }
-//
-//    // Print the unique letters found in both sequences
-//    std::cout << "Unique letters in target and reference sequences: ";
-//    for (char c : unique_letters) {
-//        std::cout << c << " ";
-//    }
+    bool global_fallback = true;
 
-    size_t m = (reference_sequence.length() + segment_length - 1) / segment_length; // ceiling division
-    size_t n = (target_sequence.length() + segment_length - 1) / segment_length;    // ceiling division
+    if (!only_global) {
+        global_fallback = false;
 
-    std::vector<std::string> ref_segments;
-    std::vector<std::string> target_segments;
+        size_t m = (reference_sequence.length() + segment_length - 1) / segment_length; // ceiling division
+        size_t n = (target_sequence.length() + segment_length - 1) / segment_length;    // ceiling division
 
-    int mismatch_t_ime = 0;
-    bool global_fallback = false;
-    int controuble = 0;
-    bool is_con = false;
+        std::vector<std::string> ref_segments;
+        std::vector<std::string> target_segments;
 
-    for (size_t i = 0; i < m; ++i) {
-        size_t start = i * segment_length;
-        size_t length = std::min(segment_length, reference_sequence.length() - start);
-        ref_segments.push_back(reference_sequence.substr(start, length));
-    }
+        int mismatch_t_ime = 0;
+        int controuble = 0;
+        bool is_con = false;
 
-    for (size_t i = 0; i < n; ++i) {
-        size_t start = i * segment_length;
-        size_t length = std::min(segment_length, target_sequence.length() - start);
-        target_segments.push_back(target_sequence.substr(start, length));
-    }
-
-    for (size_t i = 0; i < n; ++i) {
-        if (i % 100 == 0) {
-            std::cout << "Processing segment " << i + 1 << " of " << n << std::endl;
+        for (size_t i = 0; i < m; ++i) {
+            size_t start = i * segment_length;
+            size_t length = std::min(segment_length, reference_sequence.length() - start);
+            ref_segments.push_back(reference_sequence.substr(start, length));
         }
 
-        MatchFinder match_finder(ref_segments[i], target_segments[i], kmer_size, search_range_limit);
-        std::vector<AlignmentSegment> matches = match_finder.findMatches(false);
-
-        if (matches.empty()) {
-            std::cout << "No matches found for segment " << i + 1 << ". Attempting with k0." << std::endl;
-            MatchFinder matchFinder(ref_segments[i], target_segments[i], k0, search_range_limit);
-            matches = matchFinder.findMatches(false);
+        for (size_t i = 0; i < n; ++i) {
+            size_t start = i * segment_length;
+            size_t length = std::min(segment_length, target_sequence.length() - start);
+            target_segments.push_back(target_sequence.substr(start, length));
         }
 
-        if (matches.empty()) {
-            std::cout << "No matches found for segment " << i + 1 << " even with k0." << std::endl;
-            mismatch_t_ime++;
-            if (is_con) {
-                controuble++;
-            } else {
-                controuble = 1;
-                is_con = true;
+        for (size_t i = 0; i < n; ++i) {
+            if (i % 100 == 0) {
+                std::cout << "Processing segment " << i + 1 << " of " << n << std::endl;
             }
 
-            std::string intermediate_data = "RAW_TARGET_SEGMENT " + std::to_string(i) + " " + target_segments[i] + "\n";
-            if (!saveToFile(intermediate_file, intermediate_data)) {
-                throw std::runtime_error("Failed to save intermediate data stream to file: " + intermediate_file);
+            MatchFinder match_finder(ref_segments[i], target_segments[i], kmer_size, search_range_limit);
+            std::vector<AlignmentSegment> matches = match_finder.findMatches(false);
+
+            if (matches.empty()) {
+                std::cout << "No matches found for segment " << i + 1 << ". Attempting with k0." << std::endl;
+                MatchFinder matchFinder(ref_segments[i], target_segments[i], k0, search_range_limit);
+                matches = matchFinder.findMatches(false);
             }
-            continue;
-        }
 
-        int current_ref_segment_offset = i * segment_length;
-        int current_target_segment_offset = i * segment_length;
-        saveAlignmentSegmentsToFile(intermediate_file, matches, current_ref_segment_offset);
+            if (matches.empty()) {
+                std::cout << "No matches found for segment " << i + 1 << " even with k0." << std::endl;
+                mismatch_t_ime++;
+                if (is_con) {
+                    controuble++;
+                } else {
+                    controuble = 1;
+                    is_con = true;
+                }
+
+                std::string intermediate_data = "RAW_TARGET_SEGMENT " + std::to_string(i) + " " + target_segments[i] + "\n";
+                if (!saveToFile(intermediate_file, intermediate_data)) {
+                    throw std::runtime_error("Failed to save intermediate data stream to file: " + intermediate_file);
+                }
+                continue;
+            }
+
+            int current_ref_segment_offset = i * segment_length;
+            int current_target_segment_offset = i * segment_length;
+            saveAlignmentSegmentsToFile(intermediate_file, matches, current_ref_segment_offset);
 
 
-        int unmatched_chars = 0;
-        for (const auto &segment: matches) {
-            if (!segment.is_match) {
-                unmatched_chars += segment.mismatched_sequence.length();
+            int unmatched_chars = 0;
+            for (const auto &segment: matches) {
+                if (!segment.is_match) {
+                    unmatched_chars += segment.mismatched_sequence.length();
+                }
+            }
+
+            size_t total_length = target_segments[i].length();
+            if (unmatched_chars / static_cast<double>(total_length) > mismatch_threshold_T1) {
+                mismatch_t_ime++;
+            }
+
+                        if (is_con && controuble > 2) {
+                mismatch_t_ime -= controuble;
+                if (mismatch_t_ime < 0) mismatch_t_ime = 0;
+            }
+
+            controuble = 1;
+            is_con = false;
+
+            if (mismatch_t_ime > mismatch_threshold_T2) {
+                std::cout << "Mismatch threshold exceeded. Triggering global fallback." << std::endl;
+                global_fallback = true;
+                break;
             }
         }
 
-        size_t total_length = target_segments[i].length();
-        if (unmatched_chars / static_cast<double>(total_length) > mismatch_threshold_T1) {
-            mismatch_t_ime++;
-        }
-
-                    if (is_con && controuble > 2) {
-            mismatch_t_ime -= controuble;
-            if (mismatch_t_ime < 0) mismatch_t_ime = 0;
-        }
-
-        controuble = 1;
-        is_con = false;
-
-        if (mismatch_t_ime > mismatch_threshold_T2) {
-            std::cout << "Mismatch threshold exceeded. Triggering global fallback." << std::endl;
-            global_fallback = true;
-            break;
-        }
     }
 
     if (global_fallback) {
@@ -499,5 +487,8 @@ void Compressor::compress(const std::string &ref_fasta_path,
     std::cout << "Final output compressed with 7zip." << std::endl;
 
     // Clean up intermediate file
-//    Utils::removeFileIfExists(intermediate_file);
+    Utils::removeFileIfExists(intermediate_file);
+
+    // Clean up uncompressed file
+    Utils::removeFileIfExists(final_filename, false);
 }

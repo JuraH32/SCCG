@@ -2,6 +2,7 @@
 
 #include "Decompressor.h"
 #include "Position.h"
+#include "Utils.h"
 #include <filesystem>
 #include <fstream>
 #include <sstream>
@@ -90,28 +91,24 @@ void Decompressor::decompress(
     const std::string& outputFaPath
 ) {
     // 1) Extract .7z into a temp folder
-//    std::string unzipDir = outputFaPath + "_unzip";
-//    std::filesystem::remove_all(unzipDir);
-//    std::filesystem::create_directories(unzipDir);
-//    {
-//        std::string sevenza = "./7za";
-//        std::string cmd = sevenza + " e \"" + archivePath + "\" -o\"" + unzipDir + "\" -aos";
-//        if (std::system(cmd.c_str()) != 0) {
-//            throw std::runtime_error("Decompressor: failed to extract archive: " + archivePath);
-//        }
-//    }
+    std::string unzipDir = outputFaPath + "_unzip";
+    std::filesystem::remove_all(unzipDir);
+    std::filesystem::create_directories(unzipDir);
+    if (Utils::decompressWith7zip(archivePath, unzipDir) != 0) {
+        throw std::runtime_error("Decompressor: failed to extract archive: " + archivePath);
+    }
 
-    // 2) Locate the single intermediate file
-//    std::string intermediate;
-//    for (auto &e : std::filesystem::directory_iterator(unzipDir)) {
-//        if (e.is_regular_file()) {
-//            intermediate = e.path().string();
-//            break;
-//        }
-//    }
-//    if (intermediate.empty()) {
-//        throw std::runtime_error("Decompressor: no file found in " + unzipDir);
-//    }
+    //2) Locate the single intermediate file
+    std::string intermediate;
+    for (auto &e : std::filesystem::directory_iterator(unzipDir)) {
+        if (e.is_regular_file()) {
+            intermediate = e.path().string();
+            break;
+        }
+    }
+    if (intermediate.empty()) {
+        throw std::runtime_error("Decompressor: no file found in " + unzipDir);
+    }
 
     // 3) Parse header lines: 0=meta, 1=line_length, 2=LOWERCASE, 3=N_POSITIONS
     std::vector<Position> L_list, N_list;
@@ -119,8 +116,8 @@ void Decompressor::decompress(
     int line_length = 0;
 
     {
-        std::ifstream fin(archivePath);
-        if (!fin) throw std::runtime_error("Decompressor: cannot open " + archivePath);
+        std::ifstream fin(intermediate);
+        if (!fin) throw std::runtime_error("Decompressor: cannot open " + intermediate);
         std::string line;
         for (int pass = 0; pass < 4 && std::getline(fin, line); ++pass) {
             if (pass == 0) {
@@ -153,7 +150,7 @@ void Decompressor::decompress(
     }
 
     // 5) Reconstruct the core sequence
-    std::stringstream core_ss = ORGD::reconstruct(archivePath, reference);
+    std::stringstream core_ss = ORGD::reconstruct(intermediate, reference);
     std::string target = core_ss.str();
 
     // 6) Re-insert N runs
@@ -191,20 +188,9 @@ void Decompressor::decompress(
         if (i && i % line_length == 0) wrapped << "\n";
         wrapped << target[i];
     }
+    wrapped << "\n";
 
-//    // Add newline every 50 characters
-//    std::ostringstream final;
-//    // Add meta data
-//    final << meta_data;
-//    for (size_t i = 0; i < wrapped.str().length(); i += 50) {
-//        final << wrapped.str().substr(i, 50);
-//        if (i + 50 < wrapped.str().length()) final << "\n";
-//    }
-//
-//    wrapped << "\n";
-
-    ORGD::write(outputFaPath, meta_data + wrapped.str() + "\n");
-
-//    std::filesystem::remove_all(unzipDir);
+    ORGD::write(outputFaPath, meta_data + wrapped.str());
+    std::filesystem::remove_all(unzipDir);
     std::cout << "Decompressed FASTA written to " << outputFaPath << "\n";
 }
