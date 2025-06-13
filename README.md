@@ -5,7 +5,7 @@
 Compile the project using a C++17 compatible compiler (like g++):
 
 ```bash
-g++ main.cpp src/* -o sccg -std=c++17 -O3
+g++ main.cpp src/*.cpp -o sccg -std=c++17 -O3
 ```
 (Note: The executable name is changed to `sccg` from `main` for clarity. Adjust if you prefer `main`.)
 
@@ -80,6 +80,6 @@ Compares two FASTA files to see if their sequence contents are identical, ignori
 
 **Example:**
 ```bash
-./sccg check data/hg17/chr1.fa decoded_output_genome/chr1.fa
-./sccg check data/hg17/ decoded_output_genome
+./sccg check data/hg18/chr1.fa decoded_output_genome/chr1.fa
+./sccg check data/hg18/ decoded_output_genome
 ```
